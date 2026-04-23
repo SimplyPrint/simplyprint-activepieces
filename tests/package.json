@@ -1,0 +1,14 @@
+{
+  "name": "@simplyprint/piece-tests",
+  "private": true,
+  "description": "Standalone test runner for @activepieces/piece-simplyprint. Lives here (outside the main package.json) so workspace:* runtime deps don't block a plain `npm install` when running tests.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}
