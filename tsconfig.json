@@ -1,5 +1,4 @@
 {
-  "extends": "../../../../tsconfig.base.json",
   "files": [],
   "include": [],
   "references": [
@@ -8,9 +7,17 @@
     }
   ],
   "compilerOptions": {
-    "forceConsistentCasingInFileNames": true,
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2022", "DOM"],
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": false
   }
 }

@@ -5,3 +5,5 @@ dist/
 .nx/
 .DS_Store
 *.log
+tests/node_modules/
+tests/package-lock.json

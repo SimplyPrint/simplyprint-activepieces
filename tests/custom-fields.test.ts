@@ -43,15 +43,26 @@ describe('toSubmissionArray', () => {
         ]);
     });
 
-    it('maps raw booleans and "true"/"false" strings to { boolean }', () => {
+    it('maps raw booleans and lowercase "true"/"false" strings to { boolean }', () => {
         expect(toSubmissionArray({ on: true })).toEqual([
             { customFieldId: 'on', value: { boolean: true } },
         ]);
         expect(toSubmissionArray({ on: 'true' })).toEqual([
             { customFieldId: 'on', value: { boolean: true } },
         ]);
-        expect(toSubmissionArray({ on: 'FALSE ' })).toEqual([
+        expect(toSubmissionArray({ on: ' false ' })).toEqual([
             { customFieldId: 'on', value: { boolean: false } },
+        ]);
+    });
+
+    it('does NOT coerce uppercase / mixed-case "True"/"FALSE" strings to booleans', () => {
+        // Intentional strictness — a field_id literally named "FALSE" (unusual
+        // but legal) should stay as a string so we don't lose information.
+        expect(toSubmissionArray({ on: 'FALSE' })).toEqual([
+            { customFieldId: 'on', value: { string: 'FALSE' } },
+        ]);
+        expect(toSubmissionArray({ on: 'True' })).toEqual([
+            { customFieldId: 'on', value: { string: 'True' } },
         ]);
     });
 
