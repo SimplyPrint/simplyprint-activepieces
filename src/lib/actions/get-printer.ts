@@ -21,7 +21,7 @@ export const getPrinterAction = createAction({
             path: 'printers/Get',
             queryParams: { pid: String(context.propsValue.printerId) },
         });
-        const data = res.objects?.data ?? [];
-        return data[0] ?? null;
+        const data = res.data ?? [];
+        return Array.isArray(data) ? (data[0] ?? null) : data;
     },
 });

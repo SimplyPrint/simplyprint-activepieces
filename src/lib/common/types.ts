@@ -1,19 +1,52 @@
-export interface Printer {
-    id: number;
-    name: string;
-    model?: string | null;
-    state?: string | null;
-    group_id?: number | null;
-    serial?: string | null;
+/**
+ * `PrinterModel::getFormattedData()` output — embedded under
+ * `printer.model` in each printer record from `printers/Get`.
+ */
+export interface PrinterModelInfo {
+    id?: number;
+    name?: string;
+    brand?: string;
+    [key: string]: unknown;
 }
 
+/**
+ * Shape returned by `printers/Get` (per-item). The printer's own fields
+ * (name, state, group id, model, …) are nested under `.printer`. `id` at the
+ * top level is the printer id.
+ */
+export interface Printer {
+    id: number;
+    sort_order?: number;
+    printer?: {
+        name?: string;
+        state?: string;
+        /** Group id (0 when no group). Group *name* is not in the default response. */
+        group?: number;
+        online?: boolean;
+        tags?: number[];
+        model?: PrinterModelInfo;
+        [key: string]: unknown;
+    };
+    filament?: unknown;
+    job?: unknown;
+}
+
+/**
+ * `queue/GetItems` / `queue/GetItem` / webhook `queue_item` shape.
+ * `filename` is the canonical field (older aliases tolerated for resilience).
+ */
 export interface QueueItem {
     id: number;
-    file_id: number;
+    filename?: string | null;
+    /** Legacy alias; older webhook samples used this. */
     file_name?: string | null;
-    group_id?: number | null;
-    order?: number | null;
-    created_at?: string | null;
+    group?: number | null;
+    sort_order?: number | null;
+    left?: number | null;
+    printed?: number | null;
+    filesystem_id?: string | null;
+    user_id?: number | null;
+    added?: string | null;
 }
 
 export interface QueueGroup {

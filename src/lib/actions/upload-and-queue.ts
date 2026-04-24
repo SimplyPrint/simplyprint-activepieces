@@ -3,138 +3,161 @@ import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
-import { uploadUserFile } from '../common/files';
-import { queueGroupDropdown, printerMultiSelectDropdown } from '../common/props';
+import { filenameFromUrl, uploadUserFile, uploadUserFileFromUrl } from '../common/files';
+import {
+    queueGroupDropdown,
+    printerMultiSelectDropdown,
+    printerModelMultiSelectDropdown,
+    tagMultiSelectDropdown,
+    nozzleSizeProp,
+    nozzleTypeProp,
+    nozzleVolumeTypeProp,
+    bedTypeDropdown,
+    buildTagsBody,
+    queuePositionProp,
+    queuePositionNumberProp,
+    resolveQueuePosition,
+} from '../common/props';
 import { toSubmissionArray } from '../common/custom-fields';
-import { buildStartOptionsProp, normalizeStartOptions } from '../common/start-options';
 
 /**
- * Composite action: upload a local file via the API files service, add it
- * to the print queue, and optionally start a print job on one or more
- * printers. This is the hero "one-node" flow for automations that receive
- * a file and want it printed.
+ * Two-step composite: upload a local file through the integration-facing
+ * files.simplyprint.io service, then add the resulting API file id to the
+ * print queue. For printing it afterwards, chain a "Start Print" action
+ * using either the returned `queueItemId` (via the "Queue item" source) or
+ * the returned `fileId` (via the "API file" source).
  */
 export const uploadAndQueueAction = createAction({
     auth: simplyprintAuth,
     name: 'upload_and_queue',
-    displayName: 'Upload, Queue, and Print',
+    displayName: 'Upload File & Add to Queue',
     description:
-        'Upload a file to SimplyPrint, add it to the print queue, and optionally start it on printers — all in one step.',
+        'Upload a local file or HTTPS URL to SimplyPrint and add it to the print queue in one step. URL uploads stream with ~95 MiB peak RAM; File uploads are buffered by AP. Files over 95 MiB are chunked automatically. For starting the print afterwards, chain a "Start Print" action.',
     props: {
         file: Property.File({
             displayName: 'File',
-            description: 'File data (G-code, STL, 3MF).',
-            required: true,
+            description:
+                'File data (G-code, STL, 3MF). Used if "File URL" is empty. AP materializes the whole file into RAM before this action runs — for very large files prefer the File URL input below.',
+            required: false,
         }),
-        queueGroupId: queueGroupDropdown({ required: true }),
+        fileUrl: Property.ShortText({
+            displayName: 'File URL',
+            description:
+                'Alternative to File — an HTTPS URL the piece will stream directly to SimplyPrint without buffering the whole file in memory. Recommended for files over ~500 MB. The URL must return a Content-Length header (S3 pre-signed URLs, Dropbox raw links, etc.). If set, the File input is ignored.',
+            required: false,
+        }),
+        filename: Property.ShortText({
+            displayName: 'Filename',
+            description:
+                'Name to store the file under on SimplyPrint. MUST include the correct extension (e.g. .gcode, .stl, .3mf) — the backend picks the file type from the extension, not the contents. Required when using File URL unless the URL path ends in a filename with an extension. Optional with File (defaults to source filename).',
+            required: false,
+        }),
+        groupId: queueGroupDropdown({ required: false }),
         amount: Property.Number({
             displayName: 'Quantity',
             description: 'Number of copies to queue (defaults to 1).',
             required: false,
             defaultValue: 1,
         }),
-        position: Property.StaticDropdown({
-            displayName: 'Insert at',
+        position: queuePositionProp(),
+        positionNumber: queuePositionNumberProp(),
+        forPrinters: printerMultiSelectDropdown({
             required: false,
-            defaultValue: 'bottom',
-            options: {
-                options: [
-                    { label: 'Top of queue', value: 'top' },
-                    { label: 'Bottom of queue', value: 'bottom' },
-                ],
-            },
-        }),
-        queueCustomFields: Property.Object({
-            displayName: 'Queue custom fields',
+            displayName: 'Target printers',
             description:
-                'Optional. Object keyed by custom-field UUID (fieldId) → value, applied to the new queue item (PRINT_QUEUE).',
-            required: false,
+                'Restrict this queue item to one or more specific printers. Leave empty to allow any eligible printer.',
         }),
-        startOnPrinterIds: printerMultiSelectDropdown({
-            required: false,
-            displayName: 'Start on printers',
-        }),
-        printCustomFields: Property.Object({
-            displayName: 'Print custom fields',
+        forModels: printerModelMultiSelectDropdown({ required: false }),
+        customTags: tagMultiSelectDropdown({ required: false }),
+        nozzleSize: nozzleSizeProp(),
+        nozzleType: nozzleTypeProp(),
+        nozzleVolumeType: nozzleVolumeTypeProp(),
+        bedType: bedTypeDropdown(),
+        customFields: Property.Object({
+            displayName: 'Custom fields',
             description:
-                'Optional. Object keyed by custom-field UUID (fieldId) → value, applied to the started print job (PRINT_JOB). Ignored when no printers are selected.',
+                'Optional. Object keyed by custom-field UUID (fieldId) → value. PRINT_QUEUE category is auto-applied.',
             required: false,
         }),
-        startOptions: buildStartOptionsProp(),
     },
     async run(context) {
-        const file = context.propsValue.file;
-        if (!file) throw new Error('No file provided.');
+        const fileProp = context.propsValue.file;
+        const rawUrl = (context.propsValue.fileUrl as string | undefined)?.trim();
+        const customName = (context.propsValue.filename as string | undefined)?.trim();
 
-        const uploadResult = await uploadUserFile({
-            auth: context.auth,
-            file: { filename: file.filename, data: file.data },
-        });
+        if (!rawUrl && !fileProp) {
+            throw new Error('Provide either File or File URL.');
+        }
 
-        const queueBody: Record<string, unknown> = {
+        const uploadResult = await (async () => {
+            if (rawUrl) {
+                const filename = customName && customName.length > 0
+                    ? customName
+                    : filenameFromUrl(rawUrl);
+                if (!filename) {
+                    throw new Error(
+                        'Filename is required when uploading from File URL — the URL path has no recognizable filename with an extension. Set the Filename field explicitly (e.g. "my-print.gcode").',
+                    );
+                }
+                return await uploadUserFileFromUrl({
+                    auth: context.auth,
+                    url: rawUrl,
+                    filename,
+                });
+            }
+            const filename = customName && customName.length > 0 ? customName : fileProp!.filename;
+            return await uploadUserFile({
+                auth: context.auth,
+                file: { filename, data: fileProp!.data },
+            });
+        })();
+
+        const body: Record<string, unknown> = {
             fileId: uploadResult.fileId,
-            group: context.propsValue.queueGroupId,
             amount: context.propsValue.amount ?? 1,
-            position: context.propsValue.position ?? 'bottom',
+            position: resolveQueuePosition(
+                context.propsValue.position as string | undefined,
+                context.propsValue.positionNumber as number | undefined,
+            ),
         };
-        const queueSubmissions = toSubmissionArray(context.propsValue.queueCustomFields ?? {});
-        if (queueSubmissions.length > 0) queueBody['custom_fields'] = queueSubmissions;
+
+        if (context.propsValue.groupId) body['group'] = context.propsValue.groupId;
+
+        const forPrinters = (context.propsValue.forPrinters ?? []) as number[];
+        if (forPrinters.length > 0) body['for_printers'] = forPrinters.join(',');
+
+        const forModels = (context.propsValue.forModels ?? []) as number[];
+        if (forModels.length > 0) body['for_models'] = forModels.join(',');
+
+        const tags = buildTagsBody({
+            customTagIds: context.propsValue.customTags as number[] | undefined,
+            nozzleSize: context.propsValue.nozzleSize as number | undefined,
+            nozzleType: context.propsValue.nozzleType as string | undefined,
+            nozzleVolumeType: context.propsValue.nozzleVolumeType as string | undefined,
+            bedType: context.propsValue.bedType as string | undefined,
+        });
+        if (tags) body['tags'] = tags;
+
+        const submissions = toSubmissionArray(context.propsValue.customFields ?? {});
+        if (submissions.length > 0) body['custom_fields'] = submissions;
 
         const queueResp = await simplyprintCall<{ created_id?: number; id?: number }>({
             auth: context.auth,
             method: HttpMethod.POST,
             path: 'queue/AddItem',
-            body: queueBody,
+            body,
         });
-        const queueObjects = (queueResp.objects ?? {}) as Record<string, unknown>;
+
+        const queueFlat = queueResp as unknown as Record<string, unknown>;
         const queueItemId =
-            (queueResp['created_id'] as number | undefined) ??
-            (queueObjects['created_id'] as number | undefined) ??
-            (queueObjects['id'] as number | undefined) ??
+            (queueFlat['created_id'] as number | undefined) ??
+            (queueFlat['id'] as number | undefined) ??
             null;
-
-        const startOnPrinterIds = (context.propsValue.startOnPrinterIds ?? []) as number[];
-        if (startOnPrinterIds.length === 0) {
-            return {
-                fileId: uploadResult.fileId,
-                queueItemId,
-                jobIds: null,
-                raw: { upload: uploadResult.raw, queue: queueResp, start: null },
-            };
-        }
-
-        const startBody: Record<string, unknown> = {
-            pid: startOnPrinterIds.join(','),
-        };
-        if (queueItemId) {
-            startBody['queue_file'] = queueItemId;
-        } else {
-            startBody['file_id'] = uploadResult.fileId;
-        }
-
-        const printSubmissions = toSubmissionArray(context.propsValue.printCustomFields ?? {});
-        if (printSubmissions.length > 0) startBody['custom_fields'] = printSubmissions;
-
-        const startOptions = normalizeStartOptions(
-            context.propsValue.startOptions as Record<string, unknown> | undefined,
-        );
-        if (startOptions) startBody['start_options'] = startOptions;
-
-        const startResp = await simplyprintCall({
-            auth: context.auth,
-            method: HttpMethod.POST,
-            path: 'printers/actions/CreateJob',
-            body: startBody,
-        });
-        const startObjects = (startResp.objects ?? {}) as Record<string, unknown>;
-        const jobIds =
-            startObjects['job_ids'] ?? startObjects['jobIds'] ?? startObjects['jobs'] ?? null;
 
         return {
             fileId: uploadResult.fileId,
             queueItemId,
-            jobIds,
-            raw: { upload: uploadResult.raw, queue: queueResp, start: startResp },
+            raw: { upload: uploadResult.raw, queue: queueResp },
         };
     },
 });

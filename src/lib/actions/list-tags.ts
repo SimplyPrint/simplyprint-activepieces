@@ -12,11 +12,18 @@ export const listTagsAction = createAction({
     description: 'List all custom tags configured on your account.',
     props: {},
     async run(context) {
-        const res = await simplyprintCall<{ data: Tag[] }>({
-            auth: context.auth,
-            method: HttpMethod.GET,
-            path: 'tags/Get',
-        });
-        return (res.objects?.data ?? []) as Tag[];
+        try {
+            const res = await simplyprintCall<{ tags: Tag[] }>({
+                auth: context.auth,
+                method: HttpMethod.GET,
+                path: 'tags/Get',
+            });
+            return (res.tags ?? []) as Tag[];
+        } catch (e) {
+            // `tags/Get` returns status:false when the account has no custom tags;
+            // surface an empty list instead of throwing.
+            if (/no custom tags/i.test((e as Error).message ?? '')) return [];
+            throw e;
+        }
     },
 });

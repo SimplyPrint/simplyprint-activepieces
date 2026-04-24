@@ -1,4 +1,4 @@
-import { createTrigger, TriggerStrategy, Property } from '@activepieces/pieces-framework';
+import { createTrigger, TriggerStrategy } from '@activepieces/pieces-framework';
 import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
@@ -41,15 +41,7 @@ export function createWebhookEventTrigger<Payload extends object>(opts: FactoryO
         displayName: opts.displayName,
         description: opts.description,
         type: TriggerStrategy.WEBHOOK,
-        props: {
-            // Optional readme block — tell users this is a per-flow webhook.
-            intro: Property.MarkDown({
-                value:
-                    'When this flow is enabled, Activepieces registers a dedicated webhook on ' +
-                    'your SimplyPrint account and removes it when the flow is disabled. Events are ' +
-                    'verified with a unique per-flow secret.',
-            }),
-        },
+        props: {},
         sampleData: opts.sampleData,
 
         async onEnable(context) {
@@ -68,7 +60,7 @@ export function createWebhookEventTrigger<Payload extends object>(opts: FactoryO
                 },
             });
 
-            const webhookId = res.objects?.webhook?.id;
+            const webhookId = res.webhook?.id;
             if (!webhookId) {
                 throw new Error('SimplyPrint did not return a webhook id — event registration failed.');
             }
@@ -105,6 +97,33 @@ export function createWebhookEventTrigger<Payload extends object>(opts: FactoryO
             }
 
             return [context.payload.body];
+        },
+
+        /**
+         * Fetch realistic samples directly from the SimplyPrint backend via
+         * `GET /webhooks/GetSamplePayload?event=<event>&limit=5`. Each entry
+         * is byte-identical to a real delivery (only `webhook_id` is forced
+         * to 0 for samples). We request up to 5 so the flow builder has a
+         * handful of real events to map against instead of just one.
+         *
+         * Falls back to the static `_samples.ts` entry if the backend doesn't
+         * support the endpoint yet or the call fails for any other reason,
+         * so the builder always has something to render.
+         */
+        async test(context) {
+            try {
+                const res = await simplyprintCall<{ samples?: unknown[] }>({
+                    auth: context.auth,
+                    method: HttpMethod.GET,
+                    path: 'webhooks/GetSamplePayload',
+                    queryParams: { event: opts.event, limit: '5' },
+                });
+                const samples = (res.samples ?? []) as unknown[];
+                if (samples.length > 0) return samples;
+            } catch {
+                // Endpoint not yet deployed / scope denied / network — fall through.
+            }
+            return [opts.sampleData];
         },
     });
 }

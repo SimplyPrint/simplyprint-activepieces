@@ -17,6 +17,6 @@ export const listPendingQueueItemsAction = createAction({
             method: HttpMethod.GET,
             path: 'queue/approval/GetPendingItems',
         });
-        return (res.objects?.data ?? []) as QueueItem[];
+        return (res.data ?? []) as QueueItem[];
     },
 });

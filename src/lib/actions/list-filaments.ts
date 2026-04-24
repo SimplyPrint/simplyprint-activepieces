@@ -17,6 +17,6 @@ export const listFilamentsAction = createAction({
             method: HttpMethod.GET,
             path: 'filament/Get',
         });
-        return (res.objects?.data ?? []) as Filament[];
+        return (res.data ?? []) as Filament[];
     },
 });

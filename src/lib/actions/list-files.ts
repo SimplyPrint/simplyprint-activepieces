@@ -3,31 +3,52 @@ import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
-import { PrintFile } from '../common/types';
 
+/**
+ * Wraps `files/GetFiles` — the main folder-and-file browser endpoint.
+ * Returns the whole response body (files, folders, breadcrumbs, space stats)
+ * so callers can use whichever pieces they need.
+ */
 export const listFilesAction = createAction({
     auth: simplyprintAuth,
     name: 'list_files',
     displayName: 'List Files',
-    description: 'List files in your SimplyPrint account, optionally within a folder.',
+    description:
+        'List files in your SimplyPrint account, optionally within a folder and/or filtered by a search term.',
     props: {
         folderId: Property.Number({
             displayName: 'Folder ID',
-            description: 'Leave empty to list root-level files.',
+            description: 'Leave empty (or 0) to list root-level files. Use -1 for the "all files" flat view.',
             required: false,
+        }),
+        search: Property.ShortText({
+            displayName: 'Search',
+            description: 'Optional filter by filename (substring match).',
+            required: false,
+        }),
+        globalSearch: Property.Checkbox({
+            displayName: 'Search all folders',
+            description: 'When a search term is provided, search across every folder instead of just the current one.',
+            required: false,
+            defaultValue: true,
         }),
     },
     async run(context) {
         const queryParams: Record<string, string> = {};
-        if (context.propsValue.folderId) {
-            queryParams['folder_id'] = String(context.propsValue.folderId);
+        if (typeof context.propsValue.folderId === 'number') {
+            queryParams['f'] = String(context.propsValue.folderId);
         }
-        const res = await simplyprintCall<{ data: PrintFile[] }>({
+        if (context.propsValue.search) {
+            queryParams['search'] = context.propsValue.search;
+            if (context.propsValue.globalSearch !== false) {
+                queryParams['global_search'] = '1';
+            }
+        }
+        return await simplyprintCall({
             auth: context.auth,
             method: HttpMethod.GET,
-            path: 'files/Get',
+            path: 'files/GetFiles',
             queryParams,
         });
-        return (res.objects?.data ?? []) as PrintFile[];
     },
 });

@@ -17,6 +17,6 @@ export const listPrintersAction = createAction({
             method: HttpMethod.GET,
             path: 'printers/Get',
         });
-        return (res.objects?.data ?? []) as Printer[];
+        return (res.data ?? []) as Printer[];
     },
 });

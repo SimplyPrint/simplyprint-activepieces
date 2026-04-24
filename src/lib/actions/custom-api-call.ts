@@ -1,14 +1,16 @@
 import { createAction, Property } from '@activepieces/pieces-framework';
-import { HttpMethod } from '@activepieces/pieces-common';
+import { httpClient, HttpMethod } from '@activepieces/pieces-common';
 
-import { simplyprintAuth, resolveSession } from '../auth';
-import { simplyprintCall } from '../common/client';
+import { simplyprintAuth, resolveCall } from '../auth';
+import { BASE_URL } from '../common/base-url';
 
 /**
  * Escape-hatch action: let users call any SimplyPrint REST endpoint the piece
- * doesn't wrap directly. The path is relative — "/0/account/GetUser" or
- * "printers/Get". The company segment is auto-prefixed from the OAuth token
- * unless the user types a path that already starts with a numeric segment.
+ * doesn't wrap directly. The path is relative ("printers/Get", "queue/AddItem");
+ * the company segment is auto-prefixed from the connection's bound company.
+ *
+ * Unlike the wrapped actions we do NOT assert on `status:false` here — users may
+ * want the raw body to branch on.
  */
 export const customApiCallAction = createAction({
     auth: simplyprintAuth,
@@ -46,19 +48,38 @@ export const customApiCallAction = createAction({
             description: 'Only used for POST/PUT/PATCH.',
             required: false,
         }),
+        timeoutMs: Property.Number({
+            displayName: 'Timeout (ms)',
+            description: 'Optional request timeout in milliseconds.',
+            required: false,
+        }),
+        includeResponseHeaders: Property.Checkbox({
+            displayName: 'Include response headers',
+            description: 'Return `{ body, headers, status }` instead of just the body.',
+            required: false,
+            defaultValue: false,
+        }),
     },
     async run(context) {
         const method = (context.propsValue.method ?? 'GET') as keyof typeof HttpMethod;
-        const session = await resolveSession(context.auth);
+        const { headers, companyId } = await resolveCall(context.auth);
+        const path = context.propsValue.path.replace(/^\//, '');
         const queryParams = context.propsValue.queryParams as Record<string, string> | undefined;
+        const body = context.propsValue.body as Record<string, unknown> | undefined;
+        const timeout = context.propsValue.timeoutMs;
 
-        return await simplyprintCall({
-            auth: context.auth,
+        const res = await httpClient.sendRequest<unknown>({
             method: HttpMethod[method],
-            path: context.propsValue.path.replace(/^\//, ''),
-            body: context.propsValue.body as Record<string, unknown> | undefined,
+            url: `${BASE_URL.api}/${companyId}/${path}`,
+            headers,
+            body,
             queryParams,
-            company: session.company.id,
+            ...(typeof timeout === 'number' && timeout > 0 ? { timeout } : {}),
         });
+
+        if (context.propsValue.includeResponseHeaders) {
+            return { status: res.status, headers: res.headers, body: res.body };
+        }
+        return res.body;
     },
 });

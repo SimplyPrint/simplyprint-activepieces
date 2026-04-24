@@ -7,3 +7,7 @@ dist/
 *.log
 tests/node_modules/
 
+# Crash-recovery / atomic-write leftovers seen in the wild as
+# CHANGELOG.md.tmp.<pid>.<ms-timestamp>, props.ts.tmp.<pid>.<ms>, …
+# Not ours to keep and had been getting staged by accident.
+*.tmp.*

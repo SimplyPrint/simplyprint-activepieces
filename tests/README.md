@@ -8,6 +8,7 @@ Covered units (framework-free pure helpers only):
 
 - `src/lib/common/custom-fields.ts` → `toSubmissionArray` — payload coercion for every endpoint that accepts `custom_fields`.
 - `src/lib/common/signature.ts` → `generateWebhookSecret`, `verifySimplyprintSignature`, `extractSecretHeader` — webhook signature handling.
+- `src/lib/common/chunked-upload.ts` → `driveChunkedUpload`, `driveStreamedUpload`, `extractFilesApiId` — `totalSize` + `continueToken` state machine for `files.simplyprint.io` uploads over 100 MiB. Buffered path takes a Buffer + zero-copy slices it; streaming path takes an `AsyncIterable<Uint8Array>` (e.g. a fetch response body), owns all chunk-size accounting, and validates Content-Length end-to-end.
 
 Actions, triggers, and helpers that depend on the AP framework context (`createAction`, `httpClient`, `Property.*`, etc.) are covered upstream by AP's integration test harness and are not re-tested here.
 

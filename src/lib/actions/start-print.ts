@@ -138,8 +138,8 @@ export const startPrintAction = createAction({
             body,
         });
 
-        const objects = (res.objects ?? {}) as Record<string, unknown>;
-        const jobIdsRaw = objects['job_ids'] ?? objects['jobIds'] ?? objects['jobs'] ?? null;
+        const flat = res as unknown as Record<string, unknown>;
+        const jobIdsRaw = flat['job_ids'] ?? flat['jobIds'] ?? flat['jobs'] ?? null;
         return { jobIds: jobIdsRaw, raw: res };
     },
 });

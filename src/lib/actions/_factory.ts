@@ -1,5 +1,5 @@
 import { createAction, Property } from '@activepieces/pieces-framework';
-import { HttpMethod, QueryParams, HttpMessageBody } from '@activepieces/pieces-common';
+import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
@@ -32,21 +32,6 @@ export function createPrinterAction(opts: {
             });
         },
     });
-}
-
-/**
- * Generic request helper for ad-hoc actions that don't fit the factory.
- * Returned via `simplyprintRequest({...})` inside an action's `run`.
- */
-export async function simplyprintRequest<T = unknown>(args: {
-    auth: unknown;
-    method: HttpMethod;
-    path: string;
-    body?: HttpMessageBody;
-    queryParams?: QueryParams;
-    company?: number;
-}) {
-    return simplyprintCall<T>(args);
 }
 
 export { Property };

@@ -26,6 +26,6 @@ export const listCustomFieldsAction = createAction({
             path: 'custom_fields/Get',
             queryParams,
         });
-        return (res.objects?.data ?? []) as CustomField[];
+        return (res.data ?? []) as CustomField[];
     },
 });

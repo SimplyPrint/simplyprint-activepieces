@@ -2,6 +2,16 @@ import { httpClient, HttpMethod } from '@activepieces/pieces-common';
 
 import { BASE_URL } from './base-url';
 import { getAuthHeaders, resolveCall } from '../auth';
+import {
+    driveChunkedUpload,
+    driveStreamedUpload,
+    extractFilesApiId,
+    UploadPart,
+    UploadPartResponse,
+    UploadUserFileResult,
+} from './chunked-upload';
+
+export type { UploadUserFileResult } from './chunked-upload';
 
 /**
  * Upload a file to SimplyPrint's API files service (files.simplyprint.io).
@@ -13,6 +23,17 @@ import { getAuthHeaders, resolveCall } from '../auth';
  *
  * Requires the Print Farm plan on the calling account.
  *
+ * Two entry points:
+ *   uploadUserFile        — takes a materialized Buffer/Uint8Array (the
+ *                           path AP's Property.File gives us). Slices
+ *                           zero-copy into 95 MiB chunks.
+ *   uploadUserFileFromUrl — takes an HTTPS URL, streams the bytes through
+ *                           with ~2-chunk peak RAM. Needed whenever the
+ *                           source is bigger than you want to buffer.
+ *
+ * Both share the same `totalSize` + `continueToken` state machine from
+ * chunked-upload.ts. Files under 95 MiB go single-shot.
+ *
  * NOTE: the panel-facing `POST /{id}/files/Upload` on api.simplyprint.io is
  * reserved for browser panel sessions and the mobile app; integrations
  * cannot use it.
@@ -23,46 +44,43 @@ export interface UploadUserFileInput {
     file: { filename: string; data: Buffer | Uint8Array };
 }
 
-export interface UploadUserFileResult {
-    /** Hex bucket hash (64 chars) returned by files.simplyprint.io. */
-    fileId: string;
-    /** Server-side file name echoed back in the response. */
-    name?: string;
-    /** File size in bytes. */
-    size?: number;
-    /** ISO timestamp when the file will expire (24h by default). */
-    expiresAt?: string;
-    raw: unknown;
+export interface UploadUserFileFromUrlInput {
+    auth: unknown;
+    url: string;
+    filename: string;
 }
 
-function extractFilesApiId(body: unknown): {
-    id: string;
-    name?: string;
-    size?: number;
-    expiresAt?: string;
-} | null {
-    if (!body || typeof body !== 'object') return null;
-    const env = body as Record<string, unknown>;
-
-    const file = env['file'] as Record<string, unknown> | undefined;
-    if (file && typeof file === 'object') {
-        const id = file['id'];
-        if (typeof id === 'string' && id.length > 0) {
-            return {
-                id,
-                name: typeof file['name'] === 'string' ? (file['name'] as string) : undefined,
-                size: typeof file['size'] === 'number' ? (file['size'] as number) : undefined,
-                expiresAt:
-                    typeof file['expires_at'] === 'string' ? (file['expires_at'] as string) : undefined,
-            };
+function buildSendPart(url: string, headers: Record<string, string>) {
+    return async (part: UploadPart): Promise<UploadPartResponse> => {
+        const form = new FormData();
+        form.append('file', new Blob([part.chunk]), part.filename);
+        if (part.kind === 'first') {
+            form.append('totalSize', String(part.totalSize));
+        } else if (part.kind === 'continue') {
+            form.append('continueToken', part.continueToken);
         }
-    }
 
-    for (const key of ['file_id', 'fileId', 'id'] as const) {
-        const v = env[key];
-        if (typeof v === 'string' && v.length > 0) return { id: v };
-    }
-    return null;
+        const res = await httpClient.sendRequest({
+            method: HttpMethod.POST,
+            url,
+            headers,
+            body: form,
+        });
+
+        const body = (res.body ?? {}) as Record<string, unknown>;
+        const continueToken = body['continueToken'];
+        if (typeof continueToken === 'string' && continueToken.length > 0) {
+            return { kind: 'continue', continueToken };
+        }
+
+        const parsed = extractFilesApiId(body);
+        if (parsed === null) {
+            throw new Error(
+                `SimplyPrint upload returned no file id and no continueToken (HTTP ${res.status}): ${JSON.stringify(body).slice(0, 500)}`,
+            );
+        }
+        return { kind: 'final', file: parsed, raw: body };
+    };
 }
 
 export async function uploadUserFile(input: UploadUserFileInput): Promise<UploadUserFileResult> {
@@ -70,29 +88,80 @@ export async function uploadUserFile(input: UploadUserFileInput): Promise<Upload
 
     const { companyId } = await resolveCall(input.auth);
     const headers = getAuthHeaders(input.auth);
+    const url = `${BASE_URL.files}/${companyId}/files/Upload`;
 
-    const form = new FormData();
-    form.append('file', new Blob([input.file.data]), input.file.filename);
-
-    const res = await httpClient.sendRequest({
-        method: HttpMethod.POST,
-        url: `${BASE_URL.files}/${companyId}/files/Upload`,
-        headers,
-        body: form,
+    return driveChunkedUpload({
+        filename: input.file.filename,
+        data: input.file.data,
+        sendPart: buildSendPart(url, headers),
     });
+}
 
-    const parsed = extractFilesApiId(res.body);
-    if (parsed === null) {
+/**
+ * Upload a file to SimplyPrint by streaming it from an HTTPS URL. Peak
+ * memory is ~2 * 95 MiB regardless of the source file size.
+ *
+ * Requires the URL to return a `Content-Length` header on the GET response
+ * — SimplyPrint's chunked protocol needs `totalSize` declared upfront on
+ * the first part. If Content-Length is missing we throw a clear error
+ * rather than silently buffering the whole response.
+ */
+export async function uploadUserFileFromUrl(
+    input: UploadUserFileFromUrlInput,
+): Promise<UploadUserFileResult> {
+    if (!input.url) throw new Error('No URL provided.');
+    if (!input.filename) throw new Error('No filename provided.');
+
+    const fetchRes = await fetch(input.url);
+    if (!fetchRes.ok) {
+        const peek = await fetchRes.text().catch(() => '<no body>');
         throw new Error(
-            `SimplyPrint upload returned no file id (HTTP ${res.status}): ${JSON.stringify(res.body).slice(0, 500)}`,
+            `Could not fetch file URL (HTTP ${fetchRes.status} ${fetchRes.statusText}): ${peek.slice(0, 300)}`,
         );
     }
 
-    return {
-        fileId: parsed.id,
-        name: parsed.name,
-        size: parsed.size,
-        expiresAt: parsed.expiresAt,
-        raw: res.body,
-    };
+    const contentLengthHeader = fetchRes.headers.get('content-length');
+    if (!contentLengthHeader) {
+        throw new Error(
+            `File URL did not return a Content-Length header — SimplyPrint's chunked upload needs the total size upfront. Use a host that sends Content-Length (S3 pre-signed URLs, Dropbox raw links, etc.), or use the "File" input instead (buffered).`,
+        );
+    }
+    const totalSize = parseInt(contentLengthHeader, 10);
+    if (!Number.isFinite(totalSize) || totalSize <= 0) {
+        throw new Error(`Invalid Content-Length "${contentLengthHeader}" — expected a positive integer.`);
+    }
+
+    if (!fetchRes.body) {
+        throw new Error('Fetch returned no body stream — cannot stream upload.');
+    }
+
+    const { companyId } = await resolveCall(input.auth);
+    const headers = getAuthHeaders(input.auth);
+    const url = `${BASE_URL.files}/${companyId}/files/Upload`;
+
+    return driveStreamedUpload({
+        filename: input.filename,
+        totalSize,
+        source: fetchRes.body as unknown as AsyncIterable<Uint8Array>,
+        sendPart: buildSendPart(url, headers),
+    });
+}
+
+/**
+ * Derive a filename from the last path segment of a URL if it has an
+ * extension. Returns `null` for signed URLs / opaque endpoints where the
+ * path isn't a meaningful filename (caller should then require the user to
+ * supply one explicitly).
+ */
+export function filenameFromUrl(rawUrl: string): string | null {
+    try {
+        const u = new URL(rawUrl);
+        const last = u.pathname.split('/').filter((s) => s.length > 0).pop();
+        if (last && last.includes('.')) {
+            return decodeURIComponent(last);
+        }
+    } catch {
+        // fall through
+    }
+    return null;
 }

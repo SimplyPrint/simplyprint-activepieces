@@ -5,6 +5,8 @@ import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
 import { printerDropdown } from '../common/props';
 
+const MAX_GCODE_LINES = 200;
+
 export const sendGcodeAction = createAction({
     auth: simplyprintAuth,
     name: 'send_gcode',
@@ -12,16 +14,23 @@ export const sendGcodeAction = createAction({
     description: 'Send raw G-code commands to an operational printer (requires Print Farm plan).',
     props: {
         printerId: printerDropdown({ required: true }),
-        gcode: Property.Array({
-            displayName: 'G-code lines',
-            description: 'One G-code command per entry, e.g. "G28", "M104 S200".',
+        gcode: Property.LongText({
+            displayName: 'G-code',
+            description: `One G-code command per line, e.g. "G28" then "M104 S200". Up to ${MAX_GCODE_LINES} lines per request.`,
             required: true,
         }),
     },
     async run(context) {
-        const gcode = (context.propsValue.gcode ?? []) as string[];
+        const raw = (context.propsValue.gcode ?? '') as string;
+        const gcode = raw
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter((l) => l.length > 0);
+
         if (gcode.length === 0) throw new Error('Provide at least one G-code line.');
-        if (gcode.length > 200) throw new Error('Up to 200 G-code lines per request.');
+        if (gcode.length > MAX_GCODE_LINES) {
+            throw new Error(`Up to ${MAX_GCODE_LINES} G-code lines per request.`);
+        }
 
         return await simplyprintCall({
             auth: context.auth,

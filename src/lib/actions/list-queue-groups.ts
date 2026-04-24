@@ -17,6 +17,6 @@ export const listQueueGroupsAction = createAction({
             method: HttpMethod.GET,
             path: 'queue/groups/Get',
         });
-        return (res.objects?.data ?? []) as QueueGroup[];
+        return (res.data ?? []) as QueueGroup[];
     },
 });

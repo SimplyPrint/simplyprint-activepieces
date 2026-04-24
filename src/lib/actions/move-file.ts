@@ -3,15 +3,19 @@ import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
-import { fileDropdown } from '../common/props';
 
 export const moveFileAction = createAction({
     auth: simplyprintAuth,
     name: 'move_file',
     displayName: 'Move File',
-    description: 'Move a file to a different folder.',
+    description: 'Move one or more user files to a different folder.',
     props: {
-        fileId: fileDropdown({ required: true }),
+        fileUids: Property.ShortText({
+            displayName: 'File UID(s)',
+            description:
+                'User-file UID string. Comma-separate to move several files at once. Use "List Files" to look up UIDs.',
+            required: true,
+        }),
         targetFolderId: Property.Number({
             displayName: 'Target folder ID',
             description: 'Destination folder. Use 0 for the root folder.',
@@ -21,11 +25,11 @@ export const moveFileAction = createAction({
     async run(context) {
         return await simplyprintCall({
             auth: context.auth,
-            method: HttpMethod.POST,
-            path: 'files/Move',
-            body: {
-                files: [context.propsValue.fileId],
-                target: context.propsValue.targetFolderId,
+            method: HttpMethod.GET,
+            path: 'files/MoveFiles',
+            queryParams: {
+                files: String(context.propsValue.fileUids),
+                folder: String(context.propsValue.targetFolderId ?? 0),
             },
         });
     },

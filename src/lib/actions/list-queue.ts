@@ -30,6 +30,6 @@ export const listQueueAction = createAction({
             path: 'queue/GetItems',
             queryParams,
         });
-        return (res.objects?.data ?? []) as QueueItem[];
+        return (res.data ?? []) as QueueItem[];
     },
 });

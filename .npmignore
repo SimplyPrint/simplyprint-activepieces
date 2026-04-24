@@ -1,0 +1,9 @@
+# Don't bundle prior builds back into the new one. AP's build flow runs
+# `npm pack` from `dist/`, and without this line every historical .tgz
+# sitting in dist/ would be packed into the current release — caused a
+# 33 MiB 0.5.3 tarball that failed `POST /api/v1/pieces` with HTTP 413.
+*.tgz
+
+# Source maps and declaration maps are debug-only, not needed at runtime.
+*.js.map
+*.d.ts.map

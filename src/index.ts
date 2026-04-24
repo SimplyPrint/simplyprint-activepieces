@@ -27,11 +27,9 @@ import { denyQueueItemAction } from './lib/actions/deny-queue-item';
 
 // Actions — files
 import { listFilesAction } from './lib/actions/list-files';
-import { getFileAction } from './lib/actions/get-file';
 import { uploadFileAction } from './lib/actions/upload-file';
 import { uploadAndQueueAction } from './lib/actions/upload-and-queue';
 import { moveFileAction } from './lib/actions/move-file';
-import { deleteFileAction } from './lib/actions/delete-file';
 
 // Actions — filament
 import { listFilamentsAction } from './lib/actions/list-filaments';
@@ -48,35 +46,20 @@ import { listPrintHistoryAction } from './lib/actions/list-print-history';
 import { getStatisticsAction } from './lib/actions/get-statistics';
 
 // Actions — utility
-import { triggerTestWebhookAction } from './lib/actions/trigger-test-webhook';
 import { customApiCallAction } from './lib/actions/custom-api-call';
 
-// Triggers
-import { printStartedTrigger } from './lib/triggers/print-started';
-import { printPausedTrigger } from './lib/triggers/print-paused';
-import { printResumedTrigger } from './lib/triggers/print-resumed';
-import { printFinishedTrigger } from './lib/triggers/print-finished';
-import { printFailedTrigger } from './lib/triggers/print-failed';
-import { printCancelledTrigger } from './lib/triggers/print-cancelled';
-import { queueItemAddedTrigger } from './lib/triggers/queue-item-added';
-import { queueItemApprovedTrigger } from './lib/triggers/queue-item-approved';
-import { queueItemDeniedTrigger } from './lib/triggers/queue-item-denied';
-import { queueItemPendingApprovalTrigger } from './lib/triggers/queue-item-pending-approval';
-import { filamentAssignedTrigger } from './lib/triggers/filament-assigned';
-import { filamentUnassignedTrigger } from './lib/triggers/filament-unassigned';
-import { aiFailureDetectedTrigger } from './lib/triggers/ai-failure-detected';
-import { maintenanceJobOverdueTrigger } from './lib/triggers/maintenance-job-overdue';
-import { maintenanceProblemReportedTrigger } from './lib/triggers/maintenance-problem-reported';
+// Triggers — full catalog of 62 webhook events (see lib/triggers/_catalog.ts)
+import { allTriggers } from './lib/triggers/_catalog';
 
 export const simplyprint = createPiece({
     displayName: 'SimplyPrint',
     description:
         '3D printer fleet management: monitor printers, manage the print queue, track filament, and automate print jobs.',
     auth: simplyprintAuth,
-    minimumSupportedRelease: '0.82.0',
-    logoUrl: 'https://cdn.simplyprint.io/i/static/logo/png/2x/icon_white_background_rounded.png',
+    minimumSupportedRelease: '0.30.0',
+    logoUrl: 'https://cdn.simplyprint.io/i/static/logo/svg/icon_white_background_rounded.svg',
     categories: [PieceCategory.PRODUCTIVITY],
-    authors: ['simplyprint'],
+    authors: ['SimplyPrint'],
     actions: [
         // Printer control
         listPrintersAction,
@@ -100,11 +83,9 @@ export const simplyprint = createPiece({
         denyQueueItemAction,
         // Files
         listFilesAction,
-        getFileAction,
         uploadFileAction,
         uploadAndQueueAction,
         moveFileAction,
-        deleteFileAction,
         // Filaments
         listFilamentsAction,
         getFilamentAction,
@@ -118,24 +99,7 @@ export const simplyprint = createPiece({
         listPrintHistoryAction,
         getStatisticsAction,
         // Utility
-        triggerTestWebhookAction,
         customApiCallAction,
     ],
-    triggers: [
-        printStartedTrigger,
-        printPausedTrigger,
-        printResumedTrigger,
-        printFinishedTrigger,
-        printFailedTrigger,
-        printCancelledTrigger,
-        queueItemAddedTrigger,
-        queueItemApprovedTrigger,
-        queueItemDeniedTrigger,
-        queueItemPendingApprovalTrigger,
-        filamentAssignedTrigger,
-        filamentUnassignedTrigger,
-        aiFailureDetectedTrigger,
-        maintenanceJobOverdueTrigger,
-        maintenanceProblemReportedTrigger,
-    ],
+    triggers: allTriggers,
 });
