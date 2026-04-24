@@ -2,9 +2,9 @@
 
 All notable changes to `@simplyprint/activepieces-simplyprint` are documented here.
 
-## 0.5.5
+## 0.5.6
 
-- First release published from the CI Release workflow via npm Trusted Publishing (OIDC). 0.5.4 was seeded on npm by a manual `npm publish` to bootstrap the package name; from 0.5.5 onward all releases go through `.github/workflows/release.yml` triggered by a `v*.*.*` tag push. No functional changes.
+- First release published from the CI Release workflow via npm Trusted Publishing (OIDC). 0.5.4 was seeded on npm by a manual `npm publish` to bootstrap the package name; 0.5.5 was an aborted CI attempt (trusted-publisher / `repository.url` shape still being dialed in on the npm side, never landed on the registry); 0.5.6 is the first successful CI release. From here on, all releases go through `.github/workflows/release.yml` triggered by a `v*.*.*` tag push. No functional changes vs 0.5.4.
 
 ## 0.5.4
 
