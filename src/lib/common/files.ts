@@ -59,7 +59,14 @@ function buildSendPart(url: string, headers: Record<string, string>) {
     // body without copying.
     return async (part: UploadPart): Promise<UploadPartResponse> => {
         const form = new FormData();
-        form.append('file', new Blob([part.chunk]), part.filename);
+        // TS 5.7+ types Uint8Array as Uint8Array<ArrayBufferLike> (union with
+        // SharedArrayBuffer), while the Web Blob constructor's BlobPart
+        // only accepts ArrayBuffer-backed views. Our chunks are always
+        // ArrayBuffer-backed (either a subarray of an input Buffer/
+        // Uint8Array or a freshly-allocated Uint8Array in the streaming
+        // driver), so this cast is safe at runtime.
+        const blobPart = part.chunk as Uint8Array<ArrayBuffer>;
+        form.append('file', new Blob([blobPart]), part.filename);
         if (part.kind === 'first') {
             form.append('totalSize', String(part.totalSize));
         } else if (part.kind === 'continue') {

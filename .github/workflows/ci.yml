@@ -12,22 +12,26 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20.x, 22.x]
+        # 20.x is our engines floor (package.json: "engines.node >=20"); 24.x
+        # is the active LTS line GitHub Actions is moving all actions to.
+        # 22.x covers the intermediate LTS most users actually run today.
+        node-version: [20.x, 22.x, 24.x]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
           cache-dependency-path: tests/package-lock.json
 
-      # The main package.json uses workspace:* for Activepieces framework
-      # deps, which only resolve inside the AP monorepo. CI runs the
-      # standalone vitest suite that covers framework-free helpers
-      # (custom-fields, signature) — that lives under tests/ with its
-      # own package.json.
+      # CI runs the standalone vitest suite that covers framework-free
+      # helpers (custom-fields, signature, chunked-upload) — lives under
+      # tests/ with its own package.json since the piece's own deps are
+      # AP-published now (0.5.4+) and import cleanly, but the tests were
+      # set up as a separate workspace and there's no upside to merging
+      # them back.
       - name: Install test deps
         working-directory: tests
         run: npm ci || npm install
