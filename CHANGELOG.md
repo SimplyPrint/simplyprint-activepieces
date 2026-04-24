@@ -2,6 +2,10 @@
 
 All notable changes to `@simplyprint/activepieces-simplyprint` are documented here.
 
+## 0.5.5
+
+- First release published from the CI Release workflow via npm Trusted Publishing (OIDC). 0.5.4 was seeded on npm by a manual `npm publish` to bootstrap the package name; from 0.5.5 onward all releases go through `.github/workflows/release.yml` triggered by a `v*.*.*` tag push. No functional changes.
+
 ## 0.5.4
 
 - **Published to npm as `@simplyprint/activepieces-simplyprint`.** Self-hosted Activepieces installs can now pull the piece straight from the registry (Platform Admin → Pieces → Install a piece → NPM Registry → `@simplyprint/activepieces-simplyprint` → version). No fork-and-build required.
