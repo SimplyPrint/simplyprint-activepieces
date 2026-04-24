@@ -1,8 +1,21 @@
 # SimplyPrint piece for Activepieces
 
-`@activepieces/piece-simplyprint` — connect SimplyPrint to thousands of apps via Activepieces.
+`@simplyprint/activepieces-simplyprint` — connect SimplyPrint to thousands of apps via Activepieces.
 
 [SimplyPrint](https://simplyprint.io) is a 3D printer management platform (queue, printer control, file/filament management, AI failure detection). This piece exposes SimplyPrint as triggers and actions inside the Activepieces flow builder.
+
+## Install
+
+Self-hosted Activepieces (Community Edition or Enterprise):
+
+1. Sign in as a Platform Admin.
+2. **Platform Admin → Pieces → Install a piece**.
+3. Package type: **NPM Registry**.
+4. Piece name: `@simplyprint/activepieces-simplyprint`.
+5. Version: latest (check [npmjs.com/package/@simplyprint/activepieces-simplyprint](https://www.npmjs.com/package/@simplyprint/activepieces-simplyprint)) or leave blank for the latest stable.
+6. Click **Install**. The piece appears in the flow builder search after a few seconds.
+
+Activepieces Cloud (cloud.activepieces.com) users: not available as a first-party piece yet. Open an issue on this repo if you want it prioritized for upstream submission.
 
 ## Connection
 
@@ -41,22 +54,30 @@ You can look up `fieldId` UUIDs with the **List Custom Fields** action.
 
 ## Development
 
-This piece lives inside the [Activepieces monorepo](https://github.com/activepieces/activepieces) at `packages/pieces/community/simplyprint/`. The `package.json` uses `workspace:*` for the `@activepieces/*` dependencies, so a standalone install won't work — drop the source into an AP monorepo checkout first.
-
-**Option A: contribute upstream (preferred).** Fork `activepieces/activepieces`, drop this folder into `packages/pieces/community/simplyprint/`, and open a PR. Once merged, updates ship to AP Cloud and every auto-syncing self-host.
-
-**Option B: development in-place.** If you maintain a fork of the AP monorepo, clone it as a sibling of this folder and sync via rsync:
+The piece builds standalone against published `@activepieces/*` deps — no AP monorepo required:
 
 ```sh
-rsync -a --delete ./ ../activepieces/packages/pieces/community/simplyprint/
+npm install
+npm run build         # tsc -p tsconfig.lib.json → dist/
+cd tests && npm test  # framework-free vitest suite
 ```
 
-### Build + lint (inside the AP monorepo)
+Publishing is handled by the release workflow (`.github/workflows/release.yml`): tag a version (`git tag v0.5.4 && git push --tags`) and GitHub Actions builds, tests, `npm publish --provenance`'s it via npm Trusted Publishing, and cuts a GitHub Release with the `.tgz` attached.
+
+### Working inside the Activepieces monorepo (optional)
+
+If you're iterating against the AP engine itself and want hot reload, drop this repo into `packages/pieces/community/simplyprint/` of an `activepieces/activepieces` checkout and run:
 
 ```sh
 nx build pieces-simplyprint
 nx lint pieces-simplyprint
 ```
+
+`package.json` pins concrete published versions for the `@activepieces/*` deps; bun's workspace resolution will still hand out the in-tree packages when the versions match.
+
+### Upstreaming
+
+To ship through AP Cloud + every self-hosted instance, fork `activepieces/activepieces` and submit a PR adding `packages/pieces/community/simplyprint/`. The piece needs no changes beyond renaming `package.json.name` to `@activepieces/piece-simplyprint`.
 
 ## License
 

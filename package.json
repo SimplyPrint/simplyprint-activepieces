@@ -1,16 +1,58 @@
 {
-  "name": "@activepieces/piece-simplyprint",
-  "version": "0.5.3",
+  "name": "@simplyprint/activepieces-simplyprint",
+  "version": "0.5.4",
+  "description": "SimplyPrint piece for Activepieces. 3D printer fleet management: monitor printers, manage the print queue, track filament, and automate print jobs.",
+  "keywords": [
+    "activepieces",
+    "activepieces-piece",
+    "simplyprint",
+    "3d-printing",
+    "automation",
+    "print-farm"
+  ],
+  "license": "MIT",
+  "homepage": "https://simplyprint.io/integrations/activepieces",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SimplyPrint/simplyprint-activepieces.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SimplyPrint/simplyprint-activepieces/issues"
+  },
+  "author": {
+    "name": "SimplyPrint",
+    "email": "contact@simplyprint.io",
+    "url": "https://simplyprint.io"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.lib.json && cp package.json dist/",
-    "lint": "eslint 'src/**/*.ts'"
+    "build": "tsc -p tsconfig.lib.json",
+    "lint": "eslint 'src/**/*.ts'",
+    "test": "cd tests && npm test",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@activepieces/pieces-common": "workspace:*",
-    "@activepieces/pieces-framework": "workspace:*",
-    "@activepieces/shared": "workspace:*",
+    "@activepieces/pieces-common": "^0.12.3",
+    "@activepieces/pieces-framework": "^0.28.1",
+    "@activepieces/shared": "^0.67.1",
     "tslib": "2.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "~5.5.4"
   }
 }

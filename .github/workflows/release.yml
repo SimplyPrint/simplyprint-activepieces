@@ -1,0 +1,88 @@
+name: Release
+
+# Fires on a version tag (v0.1.0, v0.2.3, ...). Tag the commit you want to ship:
+#   git tag v0.5.4 && git push --tags
+# The tag version must match package.json's "version" or npm publish will fail.
+#
+# npm Trusted Publishing (OIDC, no API token) is configured at the package
+# level on npmjs.com — the package @simplyprint/activepieces-simplyprint
+# trusts this repo + this workflow + the "npm" GitHub environment. Keep the
+# `environment: npm` line and the `id-token: write` permission in sync with
+# that configuration.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    environment: npm
+
+    permissions:
+      contents: write   # needed by softprops/action-gh-release to create the release
+      id-token: write   # for npm Trusted Publishing (OIDC)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Build
+        # tsc -p tsconfig.lib.json — emits dist/src/**.js + dist/src/**.d.ts.
+        # Framework deps resolve from npm (no AP monorepo required) because
+        # package.json pins @activepieces/pieces-* to their published ranges.
+        run: npm run build
+
+      - name: Run tests
+        # Standalone vitest suite that covers framework-free helpers
+        # (custom-fields, signature, chunked-upload). Has its own
+        # package.json and node_modules under tests/ since the piece's
+        # workspace-flavored deps would otherwise block `npm install`
+        # inside that folder.
+        working-directory: tests
+        run: |
+          npm ci || npm install
+          npm test
+
+      # Produces the .tgz on disk so the GitHub Release step can attach it.
+      # `npm publish` alone uploads to the registry but doesn't leave a tarball.
+      - name: Pack tarball
+        run: npm pack
+
+      # Prerelease versions (0.6.0-beta.1, 1.0.0-rc.2, ...) publish under the
+      # `beta` dist-tag so `npm install <pkg>` still serves the last stable.
+      - name: Determine dist-tag
+        id: distTag
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [[ "$version" == *-* ]]; then
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish package
+        run: npm publish --access public --provenance --tag ${{ steps.distTag.outputs.tag }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          prerelease: ${{ steps.distTag.outputs.prerelease == 'true' }}
+          files: |
+            *.tgz

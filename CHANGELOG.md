@@ -1,6 +1,14 @@
 # Changelog
 
-All notable changes to `@activepieces/piece-simplyprint` are documented here.
+All notable changes to `@simplyprint/activepieces-simplyprint` are documented here.
+
+## 0.5.4
+
+- **Published to npm as `@simplyprint/activepieces-simplyprint`.** Self-hosted Activepieces installs can now pull the piece straight from the registry (Platform Admin → Pieces → Install a piece → NPM Registry → `@simplyprint/activepieces-simplyprint` → version). No fork-and-build required.
+- **Package renamed** from `@activepieces/piece-simplyprint` to `@simplyprint/activepieces-simplyprint`. The piece's internal name is derived from `package.json`, so existing flows on any instance that installed the old `.tgz` directly will need to be rebuilt against the new piece identity; flows on instances pulling from the new npm package are unaffected.
+- **Workspace deps unpinned to published versions**: `@activepieces/pieces-framework ^0.28.1`, `@activepieces/pieces-common ^0.12.3`, `@activepieces/shared ^0.67.1`. Matches AP 0.82.0 (the current floor for our V2 context usage). Standalone `npm install && npm run build` now works without cloning the AP monorepo.
+- **Release workflow** (`.github/workflows/release.yml`): tag push (`v*.*.*`) triggers build + test + `npm publish --provenance` via npm Trusted Publishing (OIDC; no long-lived token). Prerelease tags (e.g. `0.6.0-beta.1`) publish under the `beta` dist-tag so `npm install <pkg>` keeps serving the last stable. GitHub Release auto-created with auto-generated notes and the .tgz attached.
+- **No functional changes** — this release exists to establish the npm distribution path for the private beta. Features from 0.5.3 (chunked uploads, URL streaming, Filename override) carry forward unchanged.
 
 ## 0.5.3
 
