@@ -56,12 +56,6 @@ jobs:
           npm ci || npm install
           npm test
 
-      # Produces the .tgz on disk so the GitHub Release step can attach it.
-      # Pack from dist/ so the tarball layout matches what `npm publish ./dist`
-      # will ship.
-      - name: Pack tarball
-        run: npm pack ./dist
-
       # Prerelease versions (0.6.0-beta.1, 1.0.0-rc.2, ...) publish under the
       # `beta` dist-tag so `npm install <pkg>` still serves the last stable.
       - name: Determine dist-tag
@@ -77,8 +71,18 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Pack + publish from INSIDE dist/, not via `npm publish ./dist`. The
+      # subpath form interacts poorly with npm's provenance + trusted-
+      # publishing combo (observed: provenance signs OK, then registry PUT
+      # returns a masked 404 despite the exact same credentials/visibility
+      # publishing the previous version successfully). `cd dist && npm …`
+      # makes the package dir the cwd, which is the conventional form npm
+      # tests against.
       - name: Publish package
-        run: npm publish ./dist --access public --provenance --tag ${{ steps.distTag.outputs.tag }}
+        working-directory: dist
+        run: |
+          npm pack
+          npm publish --access public --provenance --tag ${{ steps.distTag.outputs.tag }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -86,4 +90,4 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ steps.distTag.outputs.prerelease == 'true' }}
           files: |
-            *.tgz
+            dist/*.tgz

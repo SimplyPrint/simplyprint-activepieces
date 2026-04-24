@@ -2,6 +2,10 @@
 
 All notable changes to `@simplyprint/activepieces-simplyprint` are documented here.
 
+## 0.5.8
+
+- **Fix publish flow**: run `npm pack && npm publish` from inside `dist/` instead of `npm publish ./dist` from root. The subpath form was returning a masked 404 from the npm registry despite provenance signing completing successfully (0.5.7 hit this reproducibly; 0.5.6 worked because it published from root). Making `dist/` the cwd matches the conventional publish form npm's provenance + trusted-publishing stack is tested against. No piece-level changes vs 0.5.7.
+
 ## 0.5.7
 
 - **Fix: tarball layout so AP's piece installer can actually find the entry point.** Activepieces' REGISTRY installer (`piece-install-service.ts`) hard-codes the path `<pkg>/src/index.js` and ignores `package.json#main`. Our 0.5.4–0.5.6 tarballs placed the compiled entry at `<pkg>/dist/src/index.js`, so every install attempt from the Platform Admin UI threw `ERR_MODULE_NOT_FOUND`, which AP's error handler on 0.82.0 then re-threw as an unrelated "Cannot read properties of undefined (reading 'code')" — an unhelpful 500 that masked the real cause.
