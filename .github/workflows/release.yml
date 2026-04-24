@@ -1,14 +1,16 @@
 name: Release
 
 # Fires on a version tag (v0.1.0, v0.2.3, ...). Tag the commit you want to ship:
-#   git tag v0.5.4 && git push --tags
+#   git tag v0.5.7 && git push --tags
 # The tag version must match package.json's "version" or npm publish will fail.
 #
 # npm Trusted Publishing (OIDC, no API token) is configured at the package
 # level on npmjs.com — the package @simplyprint/activepieces-simplyprint
 # trusts this repo + this workflow + the "npm" GitHub environment. Keep the
 # `environment: npm` line and the `id-token: write` permission in sync with
-# that configuration.
+# that configuration. The repo must be PUBLIC for provenance verification;
+# a private repo produces a masked 404 on publish (npm's generic "no info"
+# response when sigstore verification fails).
 
 on:
   workflow_dispatch:
@@ -40,26 +42,25 @@ jobs:
         run: npm install --ignore-scripts
 
       - name: Build
-        # tsc -p tsconfig.lib.json — emits dist/src/**.js + dist/src/**.d.ts.
-        # Framework deps resolve from npm (no AP monorepo required) because
-        # package.json pins @activepieces/pieces-* to their published ranges.
+        # tsc -p tsconfig.lib.json emits dist/src/**, then scripts/prepare-dist.mjs
+        # writes a runtime-only dist/package.json and copies README/LICENSE/CHANGELOG
+        # so `dist/` is a publishable root. AP's piece installer expects
+        # <pkg>/src/index.js at tarball root, not <pkg>/dist/src/index.js.
         run: npm run build
 
       - name: Run tests
-        # Standalone vitest suite that covers framework-free helpers
-        # (custom-fields, signature, chunked-upload). Has its own
-        # package.json and node_modules under tests/ since the piece's
-        # workspace-flavored deps would otherwise block `npm install`
-        # inside that folder.
+        # Standalone vitest suite covering framework-free helpers
+        # (custom-fields, signature, chunked-upload).
         working-directory: tests
         run: |
           npm ci || npm install
           npm test
 
       # Produces the .tgz on disk so the GitHub Release step can attach it.
-      # `npm publish` alone uploads to the registry but doesn't leave a tarball.
+      # Pack from dist/ so the tarball layout matches what `npm publish ./dist`
+      # will ship.
       - name: Pack tarball
-        run: npm pack
+        run: npm pack ./dist
 
       # Prerelease versions (0.6.0-beta.1, 1.0.0-rc.2, ...) publish under the
       # `beta` dist-tag so `npm install <pkg>` still serves the last stable.
@@ -76,38 +77,8 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # One-shot diagnostic: prints the OIDC claims npm will verify against
-      # the Trusted Publisher config on npmjs.com. Harmless — only prints
-      # non-sensitive identity claims, not the signed JWT. Remove once the
-      # trusted-publisher wiring is confirmed working.
-      - name: Debug OIDC claims
-        run: |
-          echo "=== GitHub context ==="
-          echo "repository:        ${{ github.repository }}"
-          echo "repository_owner:  ${{ github.repository_owner }}"
-          echo "workflow:          ${{ github.workflow }}"
-          echo "workflow_ref:      ${{ github.workflow_ref }}"
-          echo "ref:               ${{ github.ref }}"
-          echo "event_name:        ${{ github.event_name }}"
-          echo ""
-          echo "=== OIDC claims (aud=npm:registry.npmjs.org) ==="
-          tok=$(curl -sSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-                "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org" \
-                | python3 -c 'import json,sys;print(json.load(sys.stdin)["value"])')
-          payload=$(echo "$tok" | cut -d. -f2)
-          # pad for urlsafe base64 decode
-          pad=$(( (4 - ${#payload} % 4) % 4 ))
-          payload="$payload$(printf '=%.0s' $(seq 1 $pad))"
-          echo "$payload" | python3 -c '
-          import sys, json, base64
-          raw = sys.stdin.read().strip()
-          claims = json.loads(base64.urlsafe_b64decode(raw))
-          for k in ("iss","aud","repository","repository_owner","workflow","workflow_ref","ref","sub","environment","job_workflow_ref","event_name","runner_environment"):
-              if k in claims:
-                  print(f"  {k}: {claims[k]}")'
-
       - name: Publish package
-        run: npm publish --access public --provenance --tag ${{ steps.distTag.outputs.tag }}
+        run: npm publish ./dist --access public --provenance --tag ${{ steps.distTag.outputs.tag }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

@@ -2,6 +2,13 @@
 
 All notable changes to `@simplyprint/activepieces-simplyprint` are documented here.
 
+## 0.5.7
+
+- **Fix: tarball layout so AP's piece installer can actually find the entry point.** Activepieces' REGISTRY installer (`piece-install-service.ts`) hard-codes the path `<pkg>/src/index.js` and ignores `package.json#main`. Our 0.5.4–0.5.6 tarballs placed the compiled entry at `<pkg>/dist/src/index.js`, so every install attempt from the Platform Admin UI threw `ERR_MODULE_NOT_FOUND`, which AP's error handler on 0.82.0 then re-threw as an unrelated "Cannot read properties of undefined (reading 'code')" — an unhelpful 500 that masked the real cause.
+- **Publish layout**: build now emits into `dist/` and publishes `dist/` as the tarball root (matching the `@activepieces/piece-*` convention). New `scripts/prepare-dist.mjs` writes a runtime-only `dist/package.json` (metadata + deps, no scripts, no devDependencies) with `main`/`types` pointing at `./src/index.js` / `./src/index.d.ts`, copies README/LICENSE/CHANGELOG next to it, and the release workflow does `npm publish ./dist`. Result: installed tree is `node_modules/@simplyprint/activepieces-simplyprint/src/index.js`, which the AP installer can resolve.
+- **Dropped the diagnostic `Debug OIDC claims` step** from `.github/workflows/release.yml` now that Trusted Publishing is confirmed working. Retained for history in the 0.5.6 commit if needed.
+- **No piece-level functional changes** vs 0.5.6. Same chunked + streaming upload behavior, same API surface, same OAuth config.
+
 ## 0.5.6
 
 - First release published from the CI Release workflow via npm Trusted Publishing (OIDC). 0.5.4 was seeded on npm by a manual `npm publish` to bootstrap the package name; 0.5.5 was an aborted CI attempt (trusted-publisher / `repository.url` shape still being dialed in on the npm side, never landed on the registry); 0.5.6 is the first successful CI release. From here on, all releases go through `.github/workflows/release.yml` triggered by a `v*.*.*` tag push. No functional changes vs 0.5.4.
