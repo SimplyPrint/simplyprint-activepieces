@@ -13,8 +13,7 @@
   "license": "MIT",
   "homepage": "https://simplyprint.io/integrations/activepieces",
   "repository": {
-    "type": "git",
-    "url": "git+https://github.com/SimplyPrint/simplyprint-activepieces.git"
+    "url": "https://github.com/SimplyPrint/simplyprint-activepieces"
   },
   "bugs": {
     "url": "https://github.com/SimplyPrint/simplyprint-activepieces/issues"
