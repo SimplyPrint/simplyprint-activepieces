@@ -1,5 +1,3 @@
-import { httpClient, HttpMethod } from '@activepieces/pieces-common';
-
 import { BASE_URL } from './base-url';
 import { getAuthHeaders, resolveCall } from '../auth';
 import {
@@ -51,6 +49,14 @@ export interface UploadUserFileFromUrlInput {
 }
 
 function buildSendPart(url: string, headers: Record<string, string>) {
+    // NB: we use Node's native fetch, NOT AP's axios-based
+    // `httpClient.sendRequest`. The pieces-common httpClient does not
+    // serialize Web-standard FormData / Blob bodies correctly (it passes
+    // them to axios which then JSON-stringifies to `{}`), so the previous
+    // implementation produced empty multipart requests that SimplyPrint
+    // rightly rejected with "Validation failed … The File is required".
+    // Native fetch sets the correct Content-Type boundary and streams the
+    // body without copying.
     return async (part: UploadPart): Promise<UploadPartResponse> => {
         const form = new FormData();
         form.append('file', new Blob([part.chunk]), part.filename);
@@ -60,14 +66,23 @@ function buildSendPart(url: string, headers: Record<string, string>) {
             form.append('continueToken', part.continueToken);
         }
 
-        const res = await httpClient.sendRequest({
-            method: HttpMethod.POST,
-            url,
-            headers,
-            body: form,
-        });
+        const res = await fetch(url, { method: 'POST', headers, body: form });
+        const text = await res.text();
+        let body: Record<string, unknown>;
+        try {
+            body = text.length > 0 ? (JSON.parse(text) as Record<string, unknown>) : {};
+        } catch {
+            throw new Error(
+                `SimplyPrint upload returned non-JSON (HTTP ${res.status}): ${text.slice(0, 500)}`,
+            );
+        }
 
-        const body = (res.body ?? {}) as Record<string, unknown>;
+        if (!res.ok) {
+            throw new Error(
+                `SimplyPrint upload failed (HTTP ${res.status}): ${JSON.stringify(body).slice(0, 500)}`,
+            );
+        }
+
         const continueToken = body['continueToken'];
         if (typeof continueToken === 'string' && continueToken.length > 0) {
             return { kind: 'continue', continueToken };

@@ -2,6 +2,10 @@
 
 All notable changes to `@simplyprint/activepieces-simplyprint` are documented here.
 
+## 0.5.9
+
+- **Fix: upload actions failing with "The File is required".** Every upload (both `File` and `File URL` inputs) hit SimplyPrint's validator with an empty body — `request.body: {}` in the error. Root cause: `@activepieces/pieces-common` → `httpClient.sendRequest` is axios-based and does not serialize Web-standard `FormData` / `Blob` bodies correctly; axios falls through to JSON and stringifies the form as `{}`. Switched the upload send-part path in `common/files.ts` from `httpClient.sendRequest` to Node's native `fetch`, which handles Web `FormData` natively (sets the correct `multipart/form-data` Content-Type with boundary, streams without copying). Tests unchanged. Chunked + streaming uploads both fixed.
+
 ## 0.5.8
 
 - **Fix publish flow**: run `npm pack && npm publish` from inside `dist/` instead of `npm publish ./dist` from root. The subpath form was returning a masked 404 from the npm registry despite provenance signing completing successfully (0.5.7 hit this reproducibly; 0.5.6 worked because it published from root). Making `dist/` the cwd matches the conventional publish form npm's provenance + trusted-publishing stack is tested against. No piece-level changes vs 0.5.7.
