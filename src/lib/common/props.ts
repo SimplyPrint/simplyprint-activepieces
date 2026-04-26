@@ -12,6 +12,30 @@ const unauth = (label: string) => ({
 });
 
 /**
+ * `printers/Get` is paginated. Its post_validation allows page_size up to 100,
+ * but its get_validation caps it at 25 (the panel's hard limit) — so the body
+ * is the only way to walk farms with >25 printers in a reasonable number of
+ * round-trips. We cap at 20 pages × 100 = 2000 to bound the call on
+ * pathological accounts.
+ */
+async function fetchAllPrinters(auth: unknown): Promise<Printer[]> {
+    const all: Printer[] = [];
+    const pageSize = 100;
+    const maxPages = 20;
+    for (let page = 1; page <= maxPages; page++) {
+        const res = await simplyprintCall<{ data: Printer[]; page_amount?: number }>({
+            auth, method: HttpMethod.POST, path: 'printers/Get',
+            body: { page, page_size: pageSize },
+        });
+        const batch = (res.data ?? []) as Printer[];
+        all.push(...batch);
+        const totalPages = res.page_amount ?? 1;
+        if (page >= totalPages || batch.length < pageSize) break;
+    }
+    return all;
+}
+
+/**
  * Build a stable printer label. `printers/Get` nests printer fields under
  * `.printer`, and the default response does not include a `groupName` field —
  * just the group id. We display the printer name with a `#id` suffix for
@@ -32,10 +56,7 @@ export const printerDropdown = (options: { required?: boolean; displayName?: str
         options: async ({ auth }) => {
             if (!auth) return unauth('printers');
             try {
-                const res = await simplyprintCall<{ data: Printer[] }>({
-                    auth, method: HttpMethod.GET, path: 'printers/Get',
-                });
-                const printers = (res.data ?? []) as Printer[];
+                const printers = await fetchAllPrinters(auth);
                 return {
                     disabled: false,
                     options: printers.map((p) => ({ label: printerLabel(p), value: p.id })),
@@ -91,10 +112,15 @@ export const queueItemDropdown = (options: { required?: boolean } = {}) =>
         options: async ({ auth }) => {
             if (!auth) return unauth('queue items');
             try {
-                const res = await simplyprintCall<{ data: QueueItem[] }>({
-                    auth, method: HttpMethod.GET, path: 'queue/GetItems',
+                // Force the filter path (any POST filter triggers it) so we
+                // get the unified shape `{queue: [...]}`. The legacy GET path
+                // returns `{queue, groups, ...}` too but doesn't paginate;
+                // the filter path also lets us cap page_size for big farms.
+                const res = await simplyprintCall<{ queue: QueueItem[] }>({
+                    auth, method: HttpMethod.POST, path: 'queue/GetItems',
+                    body: { compact: true, page: 1, page_size: 100 },
                 });
-                const items = (res.data ?? []) as QueueItem[];
+                const items = (res.queue ?? []) as QueueItem[];
                 return {
                     disabled: false,
                     options: items.map((i) => ({
@@ -117,16 +143,25 @@ export const filamentDropdown = (options: { required?: boolean } = {}) =>
         options: async ({ auth }) => {
             if (!auth) return unauth('filaments');
             try {
-                const res = await simplyprintCall<{ data: Filament[] }>({
-                    auth, method: HttpMethod.GET, path: 'filament/Get',
+                // See list-filaments.ts: GetFilament + compact=true returns
+                // `filament` as a flat list of {id, brand, type, colorName, …}.
+                // `compact` is read from $this->POST, so this MUST be POST —
+                // a GET with `compact=true` in the query string lands in
+                // $this->GET and is silently ignored, returning the heavy
+                // panel-shape (filament keyed by id) instead.
+                const res = await simplyprintCall<{ filament: Filament[] }>({
+                    auth, method: HttpMethod.POST, path: 'filament/GetFilament',
+                    body: { compact: true },
                 });
-                const filaments = (res.data ?? []) as Filament[];
+                const filaments = (res.filament ?? []) as Filament[];
                 return {
                     disabled: false,
-                    options: filaments.map((f) => ({
-                        label: [f.brand, f.material, f.name].filter(Boolean).join(' ') || `Filament #${f.id}`,
-                        value: f.id,
-                    })),
+                    options: filaments.map((f) => {
+                        const typeName = typeof f.type === 'object' ? f.type?.name : f.type;
+                        const label = [f.brand, typeName, f.colorName].filter(Boolean).join(' ')
+                            || `Filament #${f.id}`;
+                        return { label, value: f.id };
+                    }),
                 };
             } catch (e) {
                 return { disabled: true, options: [], placeholder: (e as Error).message };
@@ -357,8 +392,11 @@ export const customFieldDropdown = (options: { required?: boolean; entity?: stri
         options: async ({ auth }) => {
             if (!auth) return unauth('custom fields');
             try {
+                // custom_fields/Get requires page + page_size. We pull a single
+                // page big enough to cover every typical setup.
                 const res = await simplyprintCall<{ data: CustomField[] }>({
-                    auth, method: HttpMethod.GET, path: 'custom_fields/Get',
+                    auth, method: HttpMethod.POST, path: 'custom_fields/Get',
+                    body: { page: 1, page_size: 100 },
                 });
                 let fields = (res.data ?? []) as CustomField[];
                 if (options.entity) fields = fields.filter((f) => f.entity === options.entity);
@@ -403,10 +441,7 @@ export const printerModelMultiSelectDropdown = (
         options: async ({ auth }) => {
             if (!auth) return unauth('printer models');
             try {
-                const res = await simplyprintCall<{ data: Printer[] }>({
-                    auth, method: HttpMethod.GET, path: 'printers/Get',
-                });
-                const printers = (res.data ?? []) as Printer[];
+                const printers = await fetchAllPrinters(auth);
                 const seen = new Map<number, string>();
                 for (const p of printers) {
                     const m = p.printer?.model;
@@ -444,10 +479,7 @@ export const printerMultiSelectDropdown = (
         options: async ({ auth }) => {
             if (!auth) return unauth('printers');
             try {
-                const res = await simplyprintCall<{ data: Printer[] }>({
-                    auth, method: HttpMethod.GET, path: 'printers/Get',
-                });
-                const printers = (res.data ?? []) as Printer[];
+                const printers = await fetchAllPrinters(auth);
                 return {
                     disabled: false,
                     options: printers.map((p) => ({ label: printerLabel(p), value: p.id })),

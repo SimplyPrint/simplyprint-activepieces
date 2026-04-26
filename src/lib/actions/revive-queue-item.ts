@@ -14,11 +14,12 @@ export const reviveQueueItemAction = createAction({
         queueItemId: queueItemDropdown({ required: true }),
     },
     async run(context) {
+        // queue/ReviveItem reads `job` from $this->GET only.
         return await simplyprintCall({
             auth: context.auth,
             method: HttpMethod.POST,
             path: 'queue/ReviveItem',
-            body: { job: context.propsValue.queueItemId },
+            queryParams: { job: String(context.propsValue.queueItemId) },
         });
     },
 });

@@ -15,13 +15,16 @@ export const moveQueueItemAction = createAction({
         targetGroupId: queueGroupDropdown({ required: true }),
     },
     async run(context) {
+        // queue/MoveItem reads both `jobs` (comma-separated string) and `moveTo`
+        // from $this->GET — body params are ignored. We send a single id, so
+        // a comma-separated list of one is fine.
         return await simplyprintCall({
             auth: context.auth,
             method: HttpMethod.POST,
             path: 'queue/MoveItem',
-            body: {
-                jobs: [context.propsValue.queueItemId],
-                moveTo: context.propsValue.targetGroupId,
+            queryParams: {
+                jobs: String(context.propsValue.queueItemId),
+                moveTo: String(context.propsValue.targetGroupId),
             },
         });
     },

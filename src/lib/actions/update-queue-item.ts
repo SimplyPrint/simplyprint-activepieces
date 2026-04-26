@@ -22,7 +22,10 @@ export const updateQueueItemAction = createAction({
         }),
     },
     async run(context) {
-        const body: Record<string, unknown> = { job: context.propsValue.queueItemId };
+        // queue/UpdateItem splits its inputs across the two scopes: `job`
+        // identifies the row and is read from $this->GET (get_validation), the
+        // mutating fields (amount, note, etc.) live on $this->POST.
+        const body: Record<string, unknown> = {};
         if (context.propsValue.amount !== undefined) body['amount'] = context.propsValue.amount;
         if (context.propsValue.note !== undefined) body['note'] = context.propsValue.note;
 
@@ -30,6 +33,7 @@ export const updateQueueItemAction = createAction({
             auth: context.auth,
             method: HttpMethod.POST,
             path: 'queue/UpdateItem',
+            queryParams: { job: String(context.propsValue.queueItemId) },
             body,
         });
     },

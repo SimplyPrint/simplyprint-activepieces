@@ -15,13 +15,16 @@ export const assignFilamentAction = createAction({
         filamentId: filamentDropdown({ required: true }),
     },
     async run(context) {
+        // Assign.php uses RequirePrinter()/RequireFilaments() which read from
+        // GET by default — the printer/spool ids must travel as query params,
+        // not in the body.
         return await simplyprintCall({
             auth: context.auth,
             method: HttpMethod.POST,
             path: 'filament/Assign',
-            body: {
-                pid: context.propsValue.printerId,
-                fid: context.propsValue.filamentId,
+            queryParams: {
+                pid: String(context.propsValue.printerId),
+                fid: String(context.propsValue.filamentId),
             },
         });
     },

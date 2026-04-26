@@ -12,11 +12,13 @@ export const listPendingQueueItemsAction = createAction({
     description: 'List queue items awaiting approval, denied, or sent back for revision.',
     props: {},
     async run(context) {
-        const res = await simplyprintCall<{ data: QueueItem[] }>({
+        // queue/approval/GetPendingItems returns `{items, total, page, per_page}`
+        // — note the field name `items`, NOT `data`.
+        const res = await simplyprintCall<{ items: QueueItem[] }>({
             auth: context.auth,
             method: HttpMethod.GET,
             path: 'queue/approval/GetPendingItems',
         });
-        return (res.data ?? []) as QueueItem[];
+        return (res.items ?? []) as QueueItem[];
     },
 });

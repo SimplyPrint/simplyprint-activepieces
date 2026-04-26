@@ -27,14 +27,19 @@ export const denyQueueItemAction = createAction({
         }),
     },
     async run(context) {
+        // queue/approval/DenyItem reads `job` from $this->GET; `comment` and
+        // `remove` from $this->POST. Backend semantic: `remove:true` deletes
+        // the item, `remove:false` (default) keeps it as DENIED so the
+        // submitter can revise. So our "request revision" toggle is the
+        // inverse of `remove`.
         return await simplyprintCall({
             auth: context.auth,
             method: HttpMethod.POST,
             path: 'queue/approval/DenyItem',
+            queryParams: { job: String(context.propsValue.queueItemId) },
             body: {
-                job: context.propsValue.queueItemId,
                 comment: context.propsValue.comment,
-                request_revision: context.propsValue.requestRevision ?? false,
+                remove: !(context.propsValue.requestRevision ?? false),
             },
         });
     },

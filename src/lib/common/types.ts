@@ -62,13 +62,28 @@ export interface PrintFile {
     file_type?: string | null;
 }
 
+/**
+ * Shape returned by `filament/GetFilament` (per spool). Field names mirror
+ * `Filament::getFormattedData()` — `type` is the material type object,
+ * `colorName`/`colorHex` are the spool colour, `left` is grams remaining.
+ * The endpoint normally returns these keyed-by-id under `filament`; the piece
+ * always passes `compact=true` to flatten to a list.
+ */
 export interface Filament {
     id: number;
-    name?: string | null;
+    uid?: string | null;
     brand?: string | null;
-    material?: string | null;
-    color_hex?: string | null;
-    weight_remaining?: number | null;
+    type?: { id?: number; name?: string } | string | null;
+    colorName?: string | null;
+    colorHex?: string | null;
+    colorGroup?: string | null;
+    left?: number | null;
+    total?: number | null;
+    printer?: number | null;
+    extruder?: number | null;
+    nozzle?: number | null;
+    isNearEmpty?: boolean;
+    emptiedAt?: string | null;
 }
 
 export interface Tag {

@@ -12,11 +12,17 @@ export const listFilamentsAction = createAction({
     description: 'List filament spools in your SimplyPrint account.',
     props: {},
     async run(context) {
-        const res = await simplyprintCall<{ data: Filament[] }>({
+        // `filament/GetFilament` reads `compact` (and every other filter) from
+        // $this->POST. `compact:true` flattens the keyed-by-id `filament` map
+        // into a list of just the AI-relevant fields — exactly the shape we
+        // want to return. Passing it as a GET query param lands in $this->GET
+        // and is silently ignored.
+        const res = await simplyprintCall<{ filament: Filament[] }>({
             auth: context.auth,
-            method: HttpMethod.GET,
-            path: 'filament/Get',
+            method: HttpMethod.POST,
+            path: 'filament/GetFilament',
+            body: { compact: true },
         });
-        return (res.data ?? []) as Filament[];
+        return (res.filament ?? []) as Filament[];
     },
 });

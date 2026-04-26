@@ -2,6 +2,38 @@
 
 All notable changes to `@simplyprint/activepieces-simplyprint` are documented here.
 
+## 0.5.10
+
+End-to-end OAuth audit of every endpoint the piece calls. SimplyPrint's `AjaxBaseController` keeps `$_POST` (request body, JSON-decoded from `php://input` when no form fields are present) and `$_GET` (query string) strictly separate — they're not merged. Endpoints declare their input source via `get_validation` vs `post_validation`, and helpers like `RequirePrinter()` / `RequireFilament()` default to GET. Several piece actions had been calling endpoints with the right field names but in the wrong scope, which the backend silently dropped (or hard-rejected at validation), so toggles and filters never took effect.
+
+**Backend (`api/`):**
+- Drop `oauth_disabled = true` from `jobs/GetPaginatedPrintJobs` and `account/GetStatistics`. Both endpoints declare OAuth scopes (`SCOPE_PRINT_HISTORY_READ`, `SCOPE_STATISTICS_READ`) and were intended to be reachable from integration tokens; the disabled flag was a hold-over.
+
+**Piece — request method / scope fixes (silently broken):**
+- `List Print History` (`jobs/GetPaginatedPrintJobs`): switched GET → POST. Endpoint reads `page` / `page_size` / `printer_ids[]` from `$this->POST`, so the printer filter and the `Limit` prop were both being ignored (auto-defaulted to page=1, size=25, no filter).
+- `Get Account Statistics` (`account/GetStatistics`): switched GET → POST with `{general:true}`. The validator requires `general:true` OR a `start_date`/`end_date` pair (`required_unless:general,true`); the previous GET-with-no-body request was failing validation outright.
+- `List Filaments` + filament dropdown (`filament/GetFilament`): switched GET → POST with `{compact:true}` in the body. The `compact` flag is read from `$this->POST` only — passing it as a query param landed in `$this->GET` and was ignored, returning the heavy panel-shape (filament map keyed by id) instead of the flat compact list. Action then mis-typed the response as `Filament[]`.
+- `Get Filament` (`filament/GetFilament`): switched GET → POST. Action filters client-side; the call now reliably hits the OAuth path (panel uses POST too).
+- `List Printers` + printer dropdowns (`printers/Get`): switched GET → POST. The endpoint accepts page/page_size from either scope, but its `get_validation` caps `page_size` at 25 (the panel's hard limit) while `post_validation` allows 100 — so the GET request with `page_size=100` was failing validation. POST is also the only way to walk farms with >25 printers in one round-trip.
+
+**Piece — POST-vs-GET param-routing fixes (validation rejections):**
+- `Remove Queue Item` (`queue/DeleteItem`): `job` moved to `queryParams`. `get_validation` requires `job` or `jobs`; the body was being dropped.
+- `Move Queue Item` (`queue/MoveItem`): `jobs` (CSV) and `moveTo` moved to `queryParams`.
+- `Revive Queue Item` (`queue/ReviveItem`): `job` moved to `queryParams`.
+- `Update Queue Item` (`queue/UpdateItem`): `job` moved to `queryParams`; `amount` and `note` stay in body. Endpoint splits inputs across the two scopes.
+- `Approve Queue Item` (`queue/approval/ApproveItem`): `jobs` (CSV) moved to `queryParams`; `comment` stays in body.
+- `Deny Queue Item` (`queue/approval/DenyItem`): `job` moved to `queryParams`; `comment` and `remove` stay in body. Also fixed: piece was sending `request_revision` (wrong field name) and the toggle ran inverse to backend semantics. Backend's `remove:true` deletes the item, `remove:false` keeps it as DENIED so the submitter can revise — so the new body sends `remove: !requestRevision`.
+
+**Piece — response-shape fixes (returned empty results):**
+- `List Queue Items` (`queue/GetItems`): switched to POST filter path with `{compact:true, page, page_size, gid?}`. Action was reading `res.data`, but neither code path on the backend returns a `data` field — the legacy GET path returns `{queue, groups, ...}`, the filter path returns `{queue, total, page, ...}`. Action now reads `res.queue`. The `Group` filter (`gid`) is also POST-only on the backend, so the previous `group` query param did nothing. The `Include completed items` toggle is mapped onto the legacy GET path's `done_items` query param (the filter path has no equivalent), and the action concatenates `queue + done_items`.
+- `List Pending Queue Items` (`queue/approval/GetPendingItems`): action was reading `res.data`; endpoint returns `res.items`. Was returning empty.
+- Queue-item dropdown: same `data` → `queue` fix as `List Queue Items`. Forced through the filter path so big farms get paginated results instead of nothing.
+
+**Piece — wrong field name (silent no-op):**
+- `Empty Queue` (`queue/EmptyQueue`): `done_only` body field renamed to `done_items` to match `post_validation`. The "only remove completed items" toggle has never had any effect; backend was unconditionally hitting the active-queue path.
+
+**Piece — version bump:** 0.5.9 → 0.5.10.
+
 ## 0.5.9
 
 - **Fix: upload actions failing with "The File is required".** Every upload (both `File` and `File URL` inputs) hit SimplyPrint's validator with an empty body — `request.body: {}` in the error. Root cause: `@activepieces/pieces-common` → `httpClient.sendRequest` is axios-based and does not serialize Web-standard `FormData` / `Blob` bodies correctly; axios falls through to JSON and stringifies the form as `{}`. Switched the upload send-part path in `common/files.ts` from `httpClient.sendRequest` to Node's native `fetch`, which handles Web `FormData` natively (sets the correct `multipart/form-data` Content-Type with boundary, streams without copying). Tests unchanged. Chunked + streaming uploads both fixed.

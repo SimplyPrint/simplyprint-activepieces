@@ -21,14 +21,20 @@ export const approveQueueItemAction = createAction({
         }),
     },
     async run(context) {
+        // queue/approval/ApproveItem splits inputs: `job` / `jobs` (CSV) live on
+        // $this->GET (get_validation), `comment` lives on $this->POST.
+        const ids = (context.propsValue.queueItemIds ?? []).map(Number);
+        if (ids.length === 0) throw new Error('Provide at least one queue item ID.');
+
+        const body: Record<string, unknown> = {};
+        if (context.propsValue.comment) body['comment'] = context.propsValue.comment;
+
         return await simplyprintCall({
             auth: context.auth,
             method: HttpMethod.POST,
             path: 'queue/approval/ApproveItem',
-            body: {
-                jobs: (context.propsValue.queueItemIds ?? []).map(Number),
-                comment: context.propsValue.comment ?? null,
-            },
+            queryParams: { jobs: ids.join(',') },
+            body,
         });
     },
 });

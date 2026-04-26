@@ -18,14 +18,27 @@ export const listCustomFieldsAction = createAction({
         }),
     },
     async run(context) {
-        const queryParams: Record<string, string> = {};
-        if (context.propsValue.entity) queryParams['entity'] = context.propsValue.entity;
-        const res = await simplyprintCall<{ data: CustomField[] }>({
-            auth: context.auth,
-            method: HttpMethod.GET,
-            path: 'custom_fields/Get',
-            queryParams,
-        });
-        return (res.data ?? []) as CustomField[];
+        // custom_fields/Get is paginated and `page`/`page_size` are required.
+        // Loop until we've collected every field, then optionally filter by entity.
+        const all: CustomField[] = [];
+        const pageSize = 100;
+        let page = 1;
+        // Hard cap to avoid runaway loops on a misbehaving backend.
+        const maxPages = 50;
+        for (let i = 0; i < maxPages; i++) {
+            const res = await simplyprintCall<{ data: CustomField[]; page_amount?: number }>({
+                auth: context.auth,
+                method: HttpMethod.POST,
+                path: 'custom_fields/Get',
+                body: { page, page_size: pageSize },
+            });
+            const batch = (res.data ?? []) as CustomField[];
+            all.push(...batch);
+            const totalPages = res.page_amount ?? 1;
+            if (page >= totalPages || batch.length < pageSize) break;
+            page++;
+        }
+        const entity = context.propsValue.entity?.trim();
+        return entity ? all.filter((f) => f.entity === entity) : all;
     },
 });

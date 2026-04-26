@@ -20,13 +20,16 @@ export const emptyQueueAction = createAction({
         }),
     },
     async run(context) {
+        // queue/EmptyQueue's post_validation field is `done_items` — not
+        // `done_only`. The wrong name was being silently dropped, so the
+        // toggle never had any effect.
         return await simplyprintCall({
             auth: context.auth,
             method: HttpMethod.POST,
             path: 'queue/EmptyQueue',
             body: {
                 group: context.propsValue.groupId ?? null,
-                done_only: context.propsValue.doneOnly ?? false,
+                done_items: context.propsValue.doneOnly ?? false,
             },
         });
     },

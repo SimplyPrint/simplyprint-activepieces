@@ -20,16 +20,43 @@ export const listQueueAction = createAction({
         }),
     },
     async run(context) {
-        const queryParams: Record<string, string> = {};
-        if (context.propsValue.groupId) queryParams['group'] = String(context.propsValue.groupId);
-        if (context.propsValue.includeDone) queryParams['include_done'] = '1';
+        // queue/GetItems has two response paths: a legacy GET path returning
+        // `{queue, groups, done_items, ...}` and a filter path (triggered by
+        // any POST filter, including `compact`) returning `{queue, total,
+        // page, page_amount, ...}`. We always force the filter path so the
+        // shape is consistent — and so `gid` (group filter) is honoured,
+        // since that field is read from $this->POST only.
+        //
+        // The legacy `done_items` toggle isn't supported in the filter path
+        // (it ANDs in `qi.approvalStatus != DENIED` and pulls from the active
+        // queue table), so we surface "include completed" by switching to
+        // the legacy GET path when the user asks for it.
+        if (context.propsValue.includeDone) {
+            const res = await simplyprintCall<{ queue?: QueueItem[]; done_items?: QueueItem[] }>({
+                auth: context.auth,
+                method: HttpMethod.GET,
+                path: 'queue/GetItems',
+                queryParams: { done_items: '1' },
+            });
+            return [
+                ...((res.queue ?? []) as QueueItem[]),
+                ...((res.done_items ?? []) as QueueItem[]),
+            ];
+        }
 
-        const res = await simplyprintCall<{ data: QueueItem[] }>({
+        const body: Record<string, unknown> = {
+            compact: true,
+            page: 1,
+            page_size: 100,
+        };
+        if (context.propsValue.groupId) body['gid'] = context.propsValue.groupId;
+
+        const res = await simplyprintCall<{ queue: QueueItem[] }>({
             auth: context.auth,
-            method: HttpMethod.GET,
+            method: HttpMethod.POST,
             path: 'queue/GetItems',
-            queryParams,
+            body,
         });
-        return (res.data ?? []) as QueueItem[];
+        return (res.queue ?? []) as QueueItem[];
     },
 });
