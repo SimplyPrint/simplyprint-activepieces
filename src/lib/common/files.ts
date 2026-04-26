@@ -32,9 +32,13 @@ export type { UploadUserFileResult } from './chunked-upload';
  * Both share the same `totalSize` + `continueToken` state machine from
  * chunked-upload.ts. Files under 95 MiB go single-shot.
  *
- * NOTE: the panel-facing `POST /{id}/files/Upload` on api.simplyprint.io is
- * reserved for browser panel sessions and the mobile app; integrations
- * cannot use it.
+ * NOTE: integrations CAN reach `POST /{id}/files/Upload` on api.simplyprint.io,
+ * but only via the `fileId` commit path — `Upload.php::execute` gates the
+ * multipart `file`, `analysis`, and `chunkId` inputs to panel/app requests
+ * (`isAppRequest() || isPanelRequest()`). For materializing a staged upload
+ * into the user file system at a specific folder, see the `Upload File to
+ * Folder` action: it uploads here first, then POSTs `{fileId}` + `?folder=`
+ * to `files/Upload` to commit.
  */
 
 export interface UploadUserFileInput {

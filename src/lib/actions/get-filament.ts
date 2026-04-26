@@ -4,13 +4,12 @@ import { HttpMethod } from '@activepieces/pieces-common';
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
 import { Filament } from '../common/types';
-import { resolveFilamentId } from '../common/filaments';
 
 export const getFilamentAction = createAction({
     auth: simplyprintAuth,
     name: 'get_filament',
     displayName: 'Get Filament',
-    description: 'Get detailed information about a specific filament spool.',
+    description: 'Get detailed information about a specific filament spool by numeric ID or 4-character short ID (uid).',
     props: {
         filamentId: Property.ShortText({
             displayName: 'Filament',
@@ -20,28 +19,24 @@ export const getFilamentAction = createAction({
         }),
     },
     async run(context) {
-        const targetId = await resolveFilamentId(
-            context.auth,
-            context.propsValue.filamentId,
-        );
+        // `filament/GetSpecific` accepts either `id` (numeric) or `uid`
+        // (4-char short id) as a GET param. It used to be panel-only but
+        // now allows OAuth / private-API / MCP callers (gated by the
+        // `isPrivateAPIRequest || isOAuthRequest || isMcpRequest` check on
+        // the access guard).
+        const raw = String(context.propsValue.filamentId).trim();
+        if (!raw) throw new Error('Filament ID or short ID is required.');
 
-        // `filament/GetSpecific` is the public single-spool endpoint and isn't
-        // exposed to OAuth tokens (it powers the public QR-code page). The
-        // OAuth-friendly path is `filament/GetFilament`, which returns the
-        // full company spool map; we filter to the requested id here. Filters
-        // are read from $this->POST, so the request must be POST.
-        const res = await simplyprintCall<{ filament: Record<string, Filament> | Filament[] }>({
+        const queryParams: Record<string, string> = /^\d+$/.test(raw)
+            ? { id: raw }
+            : { uid: raw };
+
+        const res = await simplyprintCall<{ data: Filament }>({
             auth: context.auth,
-            method: HttpMethod.POST,
-            path: 'filament/GetFilament',
-            body: {},
+            method: HttpMethod.GET,
+            path: 'filament/GetSpecific',
+            queryParams,
         });
-        const map = res.filament ?? {};
-        const list = Array.isArray(map) ? map : Object.values(map);
-        const found = list.find((f) => Number(f.id) === targetId);
-        if (!found) {
-            throw new Error(`Filament #${targetId} not found on this account.`);
-        }
-        return found;
+        return res.data ?? null;
     },
 });

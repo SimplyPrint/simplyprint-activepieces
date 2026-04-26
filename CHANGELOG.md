@@ -2,6 +2,62 @@
 
 All notable changes to `@simplyprint/activepieces-simplyprint` are documented here.
 
+## 0.6.0
+
+Major coverage expansion based on a full audit of the SimplyPrint backend endpoints. **29 new actions** (the un-pushed 0.5.12 `Upload File to Folder` rolls into this release) plus seven backend OAuth gate flips so the new file-system / job-detail actions are reachable from integration tokens.
+
+**Backend (`api/`) — OAuth gate flips:** `files/CreateFolder`, `files/DeleteFile`, `files/DeleteFolder`, `files/UpdateFile`, `files/Download`, `jobs/GetDetails`, `queue/SetQueueItemPrinters` all had `$oauth_disabled = true` from before scopes were standardised; flipping to `false` now that the corresponding scopes (`files.write` / `files.read` / `print_history.read` / `queue.write`) are in place. `queue/SetQueueItemPrinters` also gains an explicit `requireScope(SCOPE_QUEUE_WRITE)` check (was unscoped — was implicitly any-OAuth-token).
+
+**Files (5 new actions):**
+- `Upload File to Folder` — stage bytes via `files.simplyprint.io` (chunked or streamed), then commit with `{fileId}` + `folder` query to `files/Upload`. OAuth tokens can't use the multipart / `chunkId` paths on that endpoint (gated to panel/app), but the `fileId` commit path is open. Works for files of any size (chunked upload handles GB+).
+- `Create or Update Folder` — `files/CreateFolder`. Supports shared "organization" folders with per-rank view / upload / modify perms.
+- `Delete Files` — `files/DeleteFile`, comma-separated UIDs in query.
+- `Delete Folders` — `files/DeleteFolder`, comma-separated IDs in query. All-or-nothing: any unmodifiable folder fails the whole call.
+- `Update File` — `files/UpdateFile`. Rename + printer / model assignment + remove-thumbnail. Thumbnail upload itself isn't exposed — multipart isn't supported on this endpoint over OAuth via the AP HTTP client.
+- `Download File` — `files/Download`. Source can be user-file UID, queue-item ID, or print-job UID. Uses native `fetch` (not the AP/axios httpClient) so the binary stream isn't mishandled — same reasoning as the upload-side `buildSendPart`. Stores the downloaded bytes via `context.files.write` and returns the AP file reference plus content-type / size.
+
+**Filament inventory (4 new actions):**
+- `Create Filament` — `filament/Create`. Free-text brand / color or catalog-id chain. `amount` lets you create up to 500 identical spools at once.
+- `Adjust Filament Weight` — `filament/AdjustWeight`. Provide ONE of `gramsRemaining` / `percentRemaining` / `weighedGross`; the others derive from it. Filament input accepts numeric ID or short ID (uid).
+- `Mark Filament as Dried` — `filament/MarkDried`. Bulk update — accepts an array of numeric IDs and / or short IDs (uids); the resolver maps them all.
+- `Get Filament History` — `filament/History`. Paginated usage history per spool.
+
+**Queue (4 new actions):**
+- `Get Queue Item` — `queue/GetItem`. Single-item fetch by numeric ID; previously you could only list.
+- `Get Next Queue Items` — `queue/GetNextItems`. Resolves the next-up item per printer with company match criteria + dedup (so the same item doesn't get assigned to two printers).
+- `Preview Next Queue Items per Printer` — `queue/GetNextItemsForPrinters`. Read-only per-printer view, no dedup, no offline checks. Returns `{matched item}` or `{issues blocking match}` per printer.
+- `Set Queue Item Printer Assignments` — `queue/SetQueueItemPrinters`. Bulk replace assignments (printers / models / groups) on one or more queue items. Empty arrays clear the corresponding assignment list.
+
+**Queue groups (2 new actions):**
+- `Save Queue Group` — `queue/groups/Save`. Create or edit a group (visibility ranks, approval rank rules, per-printer / per-model targeting, accepted extensions, virtual-only flag).
+- `Delete Queue Group` — `queue/groups/Delete`. Optional `moveTo` reroute for orphaned items; defaults to the first remaining group.
+
+**Print history (3 new actions):**
+- `Get Print Job` — `jobs/GetDetails`. Full job record by UID — timeline, pictures, spools, gcode analysis, cost, AI inference, custom fields. Heavy response, scope your usage.
+- `Archive Print Jobs` — `jobs/Archive`. Bulk, with optional `reason`.
+- `Unarchive Print Jobs` — `jobs/Unarchive`. Reverse of Archive.
+
+**Printer state ops (4 new actions):**
+- `Set Printer Out of Order` — `printers/SetOutOfOrder`. Bulk on/off toggle.
+- `Clear Printer Bed` — `printers/actions/ClearBed`. AutoPrint flow staple — pair with a "print done" trigger to automate bed clearing. Optional rating + AutoPrint clear-count reset.
+- `Cancel Pending Print` — `printers/actions/CancelPendingPrint`. Distinct from `Cancel Print`: this targets `print_pending` state (queued/staged but not started yet).
+- `Skip Print Objects` — `printers/actions/SkipObjects`. Skip individual model objects mid-print. Single printer per call (backend enforces).
+
+**Printer notifications (2 new actions):**
+- `Get Printer Notifications` — `printers/notification/Get`. Pairs well with the `requires_attention` bucket from `Get Farm Overview`.
+- `Resolve Printer Notification` — `printers/notification/Resolve`. Single-notification convenience wrapper. Supports `action` (multi-action picker), `force` (resolve without choosing), `dismiss`.
+
+**Tags (4 new actions):**
+- `Create or Update Tag` — `tags/Create`. Name + Bootstrap badge color.
+- `Assign Custom Tag` — `tags/Assign`. Routes by `subjectType` (1=printer, 2=printer group, 3=file, 4=queue item). Custom tag IDs go in `tag_ids` (NOT `custom` — `Assign.php` only forwards `nozzle` / `nozzleData` / `material` / `bedType` / `tag_ids` / `tag_id` / `detach_tag_ids` to the TagAssigningController, so a bare `custom` payload gets silently dropped and the controller throws "Invalid data!"). `override` to replace existing tags vs merge.
+- `Detach Tag` — `tags/Detach`. Single tag from a single subject.
+- `Delete Tag` — `tags/Delete`. Removes the tag from the account (and from every entity it was attached to).
+
+**Smoke-test caught (and fixed) during 0.6.0 development:**
+- `Mark Filament as Dried` — `RequireFilaments()` defaults to reading `fid` from `$_GET`, not `ids` from `$_POST` (the in-PHP comment on `MarkDried.php` suggesting POST is misleading; the actual call passes default args). Action now sends resolved IDs as `fid=csv` query param.
+- `Get Filament` — switched from the old GetFilament-list-and-filter workaround to `filament/GetSpecific` directly, now that the endpoint accepts OAuth / private-API / MCP callers (the earlier comment in the action is now obsolete).
+- `Create Filament` — `filament/Create` requires ALL FOUR of `total_length` / `length_used` / `total_length_type` / `left_length_type` together (validation rule `required_with_all`); the action now always sends the full set with both -types defaulted to the same unit. Renamed the prop `lengthUsed` → `lengthRemaining` to match what the backend actually does — the `length_used` POST field is, despite its name, semantically "amount remaining" (`Create.php:466` math sets `spool.lengthUsed = mmLength - gramToMm(length_used)`, so passing `length_used: 0` produces a fully-consumed spool).
+
 ## 0.5.11
 
 New action `Get Farm Overview` (`printers/GetFarmOverview`): one-shot fleet summary returning total count plus per-bucket lists (online/offline, printing/paused, awaiting bed clear, in maintenance, requires-attention, AI failure detections, …) — use it instead of paginating `List Printers` when you just need state counts.
