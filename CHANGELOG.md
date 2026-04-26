@@ -4,7 +4,9 @@ All notable changes to `@simplyprint/activepieces-simplyprint` are documented he
 
 ## 0.5.11
 
-UX pass on the per-entity action props plus paginate/filter affordances on the list actions. Single-entity dropdowns (Get Filament's "Filament" picker, Cancel Print's "Printer" picker, etc.) made sense for hand-built flows but were friction in real automation use, where the ID always flows in from a trigger or upstream node. Replaced those dropdowns with plain Number inputs (or a free-text input that also accepts the 4-character short ID for filaments). All list-action additions are optional and additive — when omitted, behaviour matches 0.5.10 exactly.
+New action `Get Farm Overview` (`printers/GetFarmOverview`): one-shot fleet summary returning total count plus per-bucket lists (online/offline, printing/paused, awaiting bed clear, in maintenance, requires-attention, AI failure detections, …) — use it instead of paginating `List Printers` when you just need state counts.
+
+Plus a UX pass on the per-entity action props plus paginate/filter affordances on the list actions. Single-entity dropdowns (Get Filament's "Filament" picker, Cancel Print's "Printer" picker, etc.) made sense for hand-built flows but were friction in real automation use, where the ID always flows in from a trigger or upstream node. Replaced those dropdowns with plain Number inputs (or a free-text input that also accepts the 4-character short ID for filaments). All list-action additions are optional and additive — when omitted, behaviour matches 0.5.10 exactly.
 
 **Per-entity actions — dropdowns → typed inputs:**
 - `Get Filament` / `Assign Filament to Printer` / `Unassign Filament`: filament input is now a free-text `ShortText` accepting either the numeric spool `id` or the 4-character short ID (`uid`) printed on the QR sticker / NFC tag. Resolution is cheap: a pure positive integer is treated as the numeric id and skips the lookup; anything else triggers one POST to `filament/GetFilament` with `compact:true` to scan by uid. New helper `common/filaments.ts::resolveFilamentId`.

@@ -5,6 +5,7 @@ import { simplyprintAuth } from './lib/auth';
 
 // Actions — printer control
 import { listPrintersAction } from './lib/actions/list-printers';
+import { getFarmOverviewAction } from './lib/actions/get-farm-overview';
 import { getPrinterAction } from './lib/actions/get-printer';
 import { pausePrintAction } from './lib/actions/pause-print';
 import { resumePrintAction } from './lib/actions/resume-print';
@@ -63,6 +64,7 @@ export const simplyprint = createPiece({
     actions: [
         // Printer control
         listPrintersAction,
+        getFarmOverviewAction,
         getPrinterAction,
         pausePrintAction,
         resumePrintAction,
