@@ -1,6 +1,6 @@
 {
   "name": "@simplyprint/activepieces-simplyprint",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "SimplyPrint piece for Activepieces. 3D printer fleet management: monitor printers, manage the print queue, track filament, and automate print jobs.",
   "keywords": [
     "activepieces",

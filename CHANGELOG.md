@@ -2,6 +2,14 @@
 
 All notable changes to `@simplyprint/activepieces-simplyprint` are documented here.
 
+## 0.6.1
+
+**Fix: `Assign Filament to Printer` was broken — was sending no body, validation failed with "The Extruder is required".** `filament/Assign`'s `post_validation` requires either the legacy `extruder` array OR the new `filament` map keyed by spool id with `{nozzle, extruder}` per spool — neither was being sent. The action also had no way to pin a specific nozzle / extruder slot, which matters for multi-nozzle printers (IDEX, toolchanger) and multi-material setups (MMS, MMU, AMS). New props:
+- **`Nozzle index`** (default 0) — which nozzle on the printer; multi-nozzle printers use 1+ for additional nozzles. Backend rejects with "Nozzle out of range" if invalid for the printer.
+- **`Extruder index`** (default 0) — which extruder on the chosen nozzle; multi-material setups use 1+ for additional extruders feeding the same nozzle. Backend rejects with "Extruder out of range" if invalid.
+
+Single-nozzle single-extruder printers keep the same behaviour (both default to 0). The action now sends the new-API body shape `{ filament: { "<fid>": { nozzle, extruder } } }` plus the existing `pid` / `fid` query params (which `RequirePrinter()` / `RequireFilaments()` read from `$_GET` regardless).
+
 ## 0.6.0
 
 Major coverage expansion based on a full audit of the SimplyPrint backend endpoints. **29 new actions** (the un-pushed 0.5.12 `Upload File to Folder` rolls into this release) plus seven backend OAuth gate flips so the new file-system / job-detail actions are reachable from integration tokens.
