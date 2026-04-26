@@ -1,9 +1,8 @@
-import { createAction } from '@activepieces/pieces-framework';
+import { createAction, Property } from '@activepieces/pieces-framework';
 import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
-import { printerDropdown } from '../common/props';
 import { Printer } from '../common/types';
 
 export const getPrinterAction = createAction({
@@ -12,7 +11,11 @@ export const getPrinterAction = createAction({
     displayName: 'Get Printer',
     description: 'Get detailed information about a specific printer.',
     props: {
-        printerId: printerDropdown({ required: true }),
+        printerId: Property.Number({
+            displayName: 'Printer ID',
+            description: 'Numeric printer ID. Typically piped in from an upstream step.',
+            required: true,
+        }),
     },
     async run(context) {
         const res = await simplyprintCall<{ data: Printer[] }>({

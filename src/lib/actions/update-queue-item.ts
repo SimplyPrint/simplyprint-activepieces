@@ -3,7 +3,6 @@ import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
-import { queueItemDropdown } from '../common/props';
 
 export const updateQueueItemAction = createAction({
     auth: simplyprintAuth,
@@ -11,7 +10,11 @@ export const updateQueueItemAction = createAction({
     displayName: 'Update Queue Item',
     description: 'Update a queue item (amount, note, etc.).',
     props: {
-        queueItemId: queueItemDropdown({ required: true }),
+        queueItemId: Property.Number({
+            displayName: 'Queue item ID',
+            description: 'Numeric queue item ID. Typically piped in from an upstream step.',
+            required: true,
+        }),
         amount: Property.Number({
             displayName: 'Quantity',
             required: false,

@@ -1,9 +1,8 @@
-import { createAction } from '@activepieces/pieces-framework';
+import { createAction, Property } from '@activepieces/pieces-framework';
 import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
-import { queueItemDropdown } from '../common/props';
 
 export const reviveQueueItemAction = createAction({
     auth: simplyprintAuth,
@@ -11,7 +10,11 @@ export const reviveQueueItemAction = createAction({
     displayName: 'Revive Queue Item',
     description: 'Bring a completed (done) queue item back to the active queue.',
     props: {
-        queueItemId: queueItemDropdown({ required: true }),
+        queueItemId: Property.Number({
+            displayName: 'Queue item ID',
+            description: 'Numeric queue item ID. Typically piped in from an upstream step.',
+            required: true,
+        }),
     },
     async run(context) {
         // queue/ReviveItem reads `job` from $this->GET only.

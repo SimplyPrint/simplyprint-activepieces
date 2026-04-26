@@ -1,9 +1,8 @@
-import { createAction } from '@activepieces/pieces-framework';
+import { createAction, Property } from '@activepieces/pieces-framework';
 import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
-import { queueItemDropdown } from '../common/props';
 
 export const removeFromQueueAction = createAction({
     auth: simplyprintAuth,
@@ -11,7 +10,11 @@ export const removeFromQueueAction = createAction({
     displayName: 'Remove Queue Item',
     description: 'Remove an item from the print queue. Destructive — the item is gone.',
     props: {
-        queueItemId: queueItemDropdown({ required: true }),
+        queueItemId: Property.Number({
+            displayName: 'Queue item ID',
+            description: 'Numeric queue item ID. Typically piped in from an upstream step.',
+            required: true,
+        }),
     },
     async run(context) {
         // queue/DeleteItem reads `job` / `jobs` from $this->GET only — sending

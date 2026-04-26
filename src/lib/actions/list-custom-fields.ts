@@ -16,14 +16,43 @@ export const listCustomFieldsAction = createAction({
             description: 'Optional — e.g. PRINT_QUEUE, FILE, USER. Leave empty to list all.',
             required: false,
         }),
+        page: Property.Number({
+            displayName: 'Page (optional)',
+            description:
+                'Specific page number (1-based). Leave empty to walk all pages and return every field.',
+            required: false,
+        }),
+        pageSize: Property.Number({
+            displayName: 'Page size (optional)',
+            description: 'Items per page (max 100). Defaults to 100 when paging is requested.',
+            required: false,
+        }),
     },
     async run(context) {
-        // custom_fields/Get is paginated and `page`/`page_size` are required.
-        // Loop until we've collected every field, then optionally filter by entity.
+        // custom_fields/Get is paginated and `page`/`page_size` are required
+        // in $this->POST.
+        const pageSize = Math.min(100, context.propsValue.pageSize ?? 100);
+        const entity = context.propsValue.entity?.trim();
+        const explicitPage = context.propsValue.page;
+
+        if (typeof explicitPage === 'number' && explicitPage >= 1) {
+            // Single-page mode. Return whatever the backend gives us — caller
+            // is paginating themselves.
+            const res = await simplyprintCall<{ data: CustomField[]; page_amount?: number; total?: number }>({
+                auth: context.auth,
+                method: HttpMethod.POST,
+                path: 'custom_fields/Get',
+                body: { page: Math.floor(explicitPage), page_size: pageSize },
+            });
+            const data = (res.data ?? []) as CustomField[];
+            return entity
+                ? { ...res, data: data.filter((f) => f.entity === entity) }
+                : res;
+        }
+
+        // Default (0.5.10-compatible): walk every page and flatten.
         const all: CustomField[] = [];
-        const pageSize = 100;
         let page = 1;
-        // Hard cap to avoid runaway loops on a misbehaving backend.
         const maxPages = 50;
         for (let i = 0; i < maxPages; i++) {
             const res = await simplyprintCall<{ data: CustomField[]; page_amount?: number }>({
@@ -38,7 +67,6 @@ export const listCustomFieldsAction = createAction({
             if (page >= totalPages || batch.length < pageSize) break;
             page++;
         }
-        const entity = context.propsValue.entity?.trim();
         return entity ? all.filter((f) => f.entity === entity) : all;
     },
 });

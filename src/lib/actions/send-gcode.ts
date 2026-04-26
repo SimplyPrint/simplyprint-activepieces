@@ -3,7 +3,6 @@ import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
-import { printerDropdown } from '../common/props';
 
 const MAX_GCODE_LINES = 200;
 
@@ -13,7 +12,11 @@ export const sendGcodeAction = createAction({
     displayName: 'Send G-code',
     description: 'Send raw G-code commands to an operational printer (requires Print Farm plan).',
     props: {
-        printerId: printerDropdown({ required: true }),
+        printerId: Property.Number({
+            displayName: 'Printer ID',
+            description: 'Numeric printer ID. Typically piped in from an upstream step.',
+            required: true,
+        }),
         gcode: Property.LongText({
             displayName: 'G-code',
             description: `One G-code command per line, e.g. "G28" then "M104 S200". Up to ${MAX_GCODE_LINES} lines per request.`,

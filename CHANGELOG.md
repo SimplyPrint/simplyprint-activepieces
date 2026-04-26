@@ -2,6 +2,29 @@
 
 All notable changes to `@simplyprint/activepieces-simplyprint` are documented here.
 
+## 0.5.11
+
+UX pass on the per-entity action props plus paginate/filter affordances on the list actions. Single-entity dropdowns (Get Filament's "Filament" picker, Cancel Print's "Printer" picker, etc.) made sense for hand-built flows but were friction in real automation use, where the ID always flows in from a trigger or upstream node. Replaced those dropdowns with plain Number inputs (or a free-text input that also accepts the 4-character short ID for filaments). All list-action additions are optional and additive — when omitted, behaviour matches 0.5.10 exactly.
+
+**Per-entity actions — dropdowns → typed inputs:**
+- `Get Filament` / `Assign Filament to Printer` / `Unassign Filament`: filament input is now a free-text `ShortText` accepting either the numeric spool `id` or the 4-character short ID (`uid`) printed on the QR sticker / NFC tag. Resolution is cheap: a pure positive integer is treated as the numeric id and skips the lookup; anything else triggers one POST to `filament/GetFilament` with `compact:true` to scan by uid. New helper `common/filaments.ts::resolveFilamentId`.
+- `Get Printer` / `Cancel Print` / `Pause Print` / `Resume Print` / `Send G-code`: printer input is now `Property.Number` (was a fleet dropdown).
+- `Update Queue Item` / `Remove Queue Item` / `Revive Queue Item` / `Move Queue Item`: queue item input is now `Property.Number`. `Move Queue Item`'s target group is also a Number (was a group dropdown).
+- `Assign Filament to Printer`: printer input is also `Property.Number`.
+
+Kept dropdowns where the user genuinely hand-picks at design time:
+- `Start Print` printer multi-select (you really do pick which printers to start on).
+- `Add File to Queue` / `Upload File & Add to Queue`: queue group, target printer multi-select, target printer model multi-select, custom-tags multi-select, bed-type dropdown, nozzle props.
+- `Empty Queue`: queue group filter.
+
+**List actions — additive filters / sort / pagination (default behaviour unchanged):**
+- `List Printers`: optional `page` + `pageSize` props. When `page` is set, returns just that page (raw response with `data` / `page_amount` / `total`). When omitted, walks every page and returns the flat array (0.5.10 behaviour).
+- `List Custom Fields`: same `page` + `pageSize` shape. Default still walks every page and returns a flat array.
+- `List Filaments`: new optional filters — `materialType`, `brand`, `color` (all substring match), `assigned` (any/true/false), `empty` (any/true/false), `printerId` — plus `sortBy` (created/last_used/left/brand/color), `sortDir` (asc/desc), and `limit` (max 100). All routed into `filament/GetFilament`'s POST body. The endpoint has no offset-pagination server-side (only a `limit` slice), so there's no `page` prop here; `limit` is the cap.
+- `List Print History`: kept the existing `limit` prop (now bounded at 100 to match `post_validation`); added optional `page` (defaults to 1).
+- `List Queue Items`: added optional `page` + `pageSize`. Forces the filter path so the response shape stays `queue: [...]`. The `Include completed items` toggle still routes through the legacy GET path (no offset-pagination there).
+- `List Pending Queue Items`: added optional `status` filter (all/pending/denied/revision), `page`, and `perPage` (backend uses `per_page` here, not `page_size`).
+
 ## 0.5.10
 
 End-to-end OAuth audit of every endpoint the piece calls. SimplyPrint's `AjaxBaseController` keeps `$_POST` (request body, JSON-decoded from `php://input` when no form fields are present) and `$_GET` (query string) strictly separate — they're not merged. Endpoints declare their input source via `get_validation` vs `post_validation`, and helpers like `RequirePrinter()` / `RequireFilament()` default to GET. Several piece actions had been calling endpoints with the right field names but in the wrong scope, which the backend silently dropped (or hard-rejected at validation), so toggles and filters never took effect.

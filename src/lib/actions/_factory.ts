@@ -3,11 +3,15 @@ import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
-import { printerDropdown } from '../common/props';
 
 /**
  * Factory for the printer-action class of endpoints (pause, resume, cancel).
  * They take a printer id via the `pid` query param and no body.
+ *
+ * Printer ID is a free-form Number — automation flows always source it from
+ * an upstream step (trigger payload, "List Printers" output, MCP response, …)
+ * rather than hand-picking a printer at design time, so a fleet dropdown
+ * would be friction.
  */
 export function createPrinterAction(opts: {
     name: string;
@@ -21,7 +25,11 @@ export function createPrinterAction(opts: {
         displayName: opts.displayName,
         description: opts.description,
         props: {
-            printerId: printerDropdown({ required: true }),
+            printerId: Property.Number({
+                displayName: 'Printer ID',
+                description: 'Numeric printer ID. Typically piped in from an upstream step.',
+                required: true,
+            }),
         },
         async run(context) {
             return await simplyprintCall({

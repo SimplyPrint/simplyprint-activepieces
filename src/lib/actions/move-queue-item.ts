@@ -1,9 +1,8 @@
-import { createAction } from '@activepieces/pieces-framework';
+import { createAction, Property } from '@activepieces/pieces-framework';
 import { HttpMethod } from '@activepieces/pieces-common';
 
 import { simplyprintAuth } from '../auth';
 import { simplyprintCall } from '../common/client';
-import { queueItemDropdown, queueGroupDropdown } from '../common/props';
 
 export const moveQueueItemAction = createAction({
     auth: simplyprintAuth,
@@ -11,8 +10,16 @@ export const moveQueueItemAction = createAction({
     displayName: 'Move Queue Item',
     description: 'Move a queue item to a different queue group.',
     props: {
-        queueItemId: queueItemDropdown({ required: true }),
-        targetGroupId: queueGroupDropdown({ required: true }),
+        queueItemId: Property.Number({
+            displayName: 'Queue item ID',
+            description: 'Numeric queue item ID. Typically piped in from an upstream step.',
+            required: true,
+        }),
+        targetGroupId: Property.Number({
+            displayName: 'Target queue group ID',
+            description: 'Numeric ID of the destination queue group.',
+            required: true,
+        }),
     },
     async run(context) {
         // queue/MoveItem reads both `jobs` (comma-separated string) and `moveTo`
